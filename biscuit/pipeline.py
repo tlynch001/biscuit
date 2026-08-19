@@ -203,7 +203,7 @@ class StoryPipeline:
         for scene in manifest.scenes:
             output = store.scene_image_path(scene.index)
             prompt_hash = sha256_text(scene.image_prompt + f"|{self._config.image.width}x{self._config.image.height}")
-            stamp_path = output.with_suffix(".hash")
+            stamp_path = store.work_dir / f"{scene.index:03d}.image.hash"
             reused = (
                 output.exists()
                 and stamp_path.exists()

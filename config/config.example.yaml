@@ -26,7 +26,7 @@ narration:
   # "development" runs without paid APIs (espeak-ng if installed, otherwise
   # timed silence). "elevenlabs" requires ELEVENLABS_API_KEY.
   provider: development
-  words_per_minute: 145
+  words_per_minute: 170
   pause_between_scenes_seconds: 0.35
   elevenlabs:
     voice_id: "21m00Tcm4TlvDq8ikWAM"

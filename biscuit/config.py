@@ -96,7 +96,7 @@ class ElevenLabsConfig:
 @dataclass
 class NarrationConfig:
     provider: str = "development"
-    words_per_minute: int = 145
+    words_per_minute: int = 170
     pause_between_scenes_seconds: float = 0.35
     elevenlabs: ElevenLabsConfig = field(default_factory=ElevenLabsConfig)
 

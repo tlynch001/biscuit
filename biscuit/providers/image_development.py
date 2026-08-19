@@ -85,7 +85,7 @@ class DevelopmentImageProvider(ImageProvider):
         return output_path
 
 
-def render_placeholder(request: ImageRequest) -> Image.Image:
+def render_placeholder(request: ImageRequest, *, include_copy: bool = True) -> Image.Image:
     width, height = request.width, request.height
     night, mid, accent = _hex_palette(request.scene.emotion)
     rng = random.Random(_seed_for(request))
@@ -110,7 +110,8 @@ def render_placeholder(request: ImageRequest) -> Image.Image:
     img = img.filter(ImageFilter.GaussianBlur(radius=0.6))
     img = _vignette(img)
     img = _grain(img, rng)
-    _draw_copy(img, request)
+    if include_copy:
+        _draw_copy(img, request)
     return img
 
 

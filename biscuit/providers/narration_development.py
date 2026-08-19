@@ -54,11 +54,11 @@ class DevelopmentNarrationProvider(NarrationProvider):
             command = [
                 binary,
                 "-s",
-                str(max(80, min(wpm, 200))),
+                str(max(90, min(int(wpm * 1.05), 220))),
                 "-p",
                 "35",
                 "-g",
-                "4",
+                "2",
                 "-w",
                 str(wav_path),
                 script_text,

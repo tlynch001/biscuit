@@ -56,11 +56,7 @@ def generate_description(manifest: StoryManifest) -> str:
 
 def render_thumbnail(manifest: StoryManifest, hero_image: Path | None, output_path: Path) -> Path:
     try:
-        canvas = Image.new("RGB", (THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT), (10, 16, 28))
-        if hero_image and hero_image.exists():
-            hero = Image.open(hero_image).convert("RGB")
-            hero = _cover(hero, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)
-            canvas.paste(hero, (0, 0))
+        canvas = _base_thumbnail_art(manifest, hero_image)
         overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(overlay)
         draw.rectangle([0, int(THUMBNAIL_HEIGHT * 0.58), THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT], fill=(8, 12, 20, 200))
@@ -79,13 +75,36 @@ def render_thumbnail(manifest: StoryManifest, hero_image: Path | None, output_pa
     return output_path
 
 
-def _cover(image: Image.Image, width: int, height: int) -> Image.Image:
-    src_w, src_h = image.size
-    scale = max(width / src_w, height / src_h)
-    resized = image.resize((int(src_w * scale), int(src_h * scale)), Image.Resampling.LANCZOS)
-    left = (resized.width - width) // 2
-    top = (resized.height - height) // 2
-    return resized.crop((left, top, left + width, top + height))
+def _base_thumbnail_art(manifest: StoryManifest, hero_image: Path | None) -> Image.Image:
+    """Build a chrome-free cinematic still so labeled development plates stay off YouTube thumbs."""
+
+    from biscuit.models import Scene
+    from biscuit.providers.base import ImageRequest
+    from biscuit.providers.image_development import render_placeholder
+
+    if not manifest.scenes:
+        return Image.new("RGB", (THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT), (10, 16, 28))
+    peak = max(manifest.scenes, key=lambda scene: len(scene.character_ids))
+    request = ImageRequest(
+        scene=Scene(
+            id=peak.id,
+            index=peak.index,
+            beat_id=peak.beat_id,
+            title=peak.title,
+            narration=peak.narration,
+            visual_description=peak.visual_description,
+            character_ids=list(peak.character_ids),
+            emotion=peak.emotion,
+        ),
+        prompt=peak.image_prompt,
+        characters=[manifest.character_map()[cid] for cid in peak.character_ids if cid in manifest.character_map()],
+        width=THUMBNAIL_WIDTH,
+        height=THUMBNAIL_HEIGHT,
+        seed=11,
+    )
+    # hero_image is reserved for a future photoreal still once an image API exists.
+    _ = hero_image
+    return render_placeholder(request, include_copy=False)
 
 
 def _font(size: int, *, bold: bool = False) -> ImageFont.ImageFont:

@@ -79,7 +79,7 @@ class Character:
 
         lines = [f"{self.name} ({self.id}): {self.species}"]
         if self.summary:
-            lines.append(self.summary.rstrip("."))
+            lines.append(self.summary.strip().rstrip("."))
         phrases = self.appearance_phrases()
         if phrases:
             lines.append("Appearance: " + "; ".join(phrases))
