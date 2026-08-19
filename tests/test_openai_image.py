@@ -114,7 +114,7 @@ def test_generations_payload_and_png(openai_provider: OpenAIImageProvider, tmp_p
     assert called["url"] == "https://api.openai.com/v1/images/generations"
     assert called["json"]["model"] == "gpt-image-2"
     assert called["json"]["prompt"] == "exact prompt that must be sent"
-    assert called["json"]["size"] == "1536x1024"
+    assert called["json"]["size"] == "1920x1088"
     assert called["json"]["quality"] == "medium"
     assert called["json"]["n"] == 1
     assert "response_format" not in called["json"]
@@ -144,7 +144,7 @@ def test_edits_used_when_reference_file_exists(
     assert called["json"] is None
     assert called["data"]["model"] == "gpt-image-2"
     assert called["data"]["prompt"] == "exact prompt that must be sent"
-    assert called["data"]["size"] == "1536x1024"
+    assert called["data"]["size"] == "1920x1088"
     assert called["data"]["quality"] == "medium"
     assert "response_format" not in called["data"]
     assert called["files"]

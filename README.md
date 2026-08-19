@@ -147,9 +147,12 @@ image:
     api_key_env: OPENAI_API_KEY
 ```
 
-`gpt-image-2` is requested at the official Images API landscape size
-**1536×1024**. The still is then cover-cropped locally to the 1920×1080
-video canvas. Nothing is stretched.
+`gpt-image-2` accepts arbitrary resolutions that meet the official
+constraints (multiples of 16, max edge 3840px, aspect ≤ 3:1,
+655,360–8,294,400 pixels). Biscuit therefore requests **1920×1088** for a
+1920×1080 canvas (1080 is not a multiple of 16) and cover-crops 4px
+locally. Older GPT Image models still use the fixed enum
+(`1024x1024` / `1536x1024` / `1024x1536`). Nothing is stretched.
 
 Image cache lives next to the PNGs (`work/NNN.image.hash`). A matching hash
 skips the API. If the prompt, size, provider, model, quality, or reference
