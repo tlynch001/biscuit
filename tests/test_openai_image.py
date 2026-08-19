@@ -114,9 +114,10 @@ def test_generations_payload_and_png(openai_provider: OpenAIImageProvider, tmp_p
     assert called["url"] == "https://api.openai.com/v1/images/generations"
     assert called["json"]["model"] == "gpt-image-2"
     assert called["json"]["prompt"] == "exact prompt that must be sent"
-    assert called["json"]["size"] == "1920x1088"
+    assert called["json"]["size"] == "1536x1024"
     assert called["json"]["quality"] == "medium"
     assert called["json"]["n"] == 1
+    assert "response_format" not in called["json"]
     assert "api_key" not in called["json"]
     assert called["headers"]["Authorization"] == "Bearer sk-test-not-real"
     revised = tmp_path / "run" / "image_prompts" / "001.revised.txt"
@@ -143,8 +144,31 @@ def test_edits_used_when_reference_file_exists(
     assert called["json"] is None
     assert called["data"]["model"] == "gpt-image-2"
     assert called["data"]["prompt"] == "exact prompt that must be sent"
+    assert called["data"]["size"] == "1536x1024"
+    assert called["data"]["quality"] == "medium"
+    assert "response_format" not in called["data"]
     assert called["files"]
-    assert called["files"][0][0] == "image[]"
+    assert called["files"][0][0] == "image"
+
+
+def test_edits_multiple_references_use_image_array_field(
+    openai_provider: OpenAIImageProvider, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request, output = _request(tmp_path, with_reference=True)
+    extra = tmp_path / "veteran_ref.png"
+    Image.new("RGB", (64, 64), (80, 70, 60)).save(extra)
+    request.references.append(CharacterReference(path=extra, kind="portrait"))
+    called: dict = {}
+
+    def fake_post(url, **kwargs):
+        called["url"] = url
+        called["files"] = kwargs.get("files")
+        return _FakeResponse(200, _success_payload(revised=None))
+
+    monkeypatch.setattr("requests.post", fake_post)
+    openai_provider.generate(request, output)
+    assert called["url"] == "https://api.openai.com/v1/images/edits"
+    assert [name for name, _meta in called["files"]] == ["image[]", "image[]"]
 
 
 def test_http_400_does_not_retry_and_names_scene(

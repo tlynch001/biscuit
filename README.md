@@ -147,10 +147,9 @@ image:
     api_key_env: OPENAI_API_KEY
 ```
 
-`gpt-image-2` requires each edge to be a multiple of 16, so 1920×1080 is
-requested as **1920×1088** and then cover-cropped (4px) to the 1920×1080
-video canvas. Nothing is stretched. If a future model returns a different
-size, the same cover-crop path runs.
+`gpt-image-2` is requested at the official Images API landscape size
+**1536×1024**. The still is then cover-cropped locally to the 1920×1080
+video canvas. Nothing is stretched.
 
 Image cache lives next to the PNGs (`work/NNN.image.hash`). A matching hash
 skips the API. If the prompt, size, provider, model, quality, or reference

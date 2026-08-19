@@ -4,10 +4,15 @@ Uses the Images API with ``gpt-image-2`` over HTTPS + ``requests`` — the same
 pattern as ElevenLabs, no extra SDK. Credentials come from an environment
 variable (default ``OPENAI_API_KEY``), never from YAML.
 
-Text-to-image uses ``/v1/images/generations``. If a scene's characters have
-on-disk :class:`~biscuit.models.CharacterReference` files, this provider
-switches to ``/v1/images/edits`` so those files can be used as references.
-That multipart protocol stays inside this module.
+Text-to-image uses ``/v1/images/generations`` JSON
+(``model``, ``prompt``, ``n``, ``size``, ``quality``). GPT Image models
+always return ``b64_json``; ``response_format`` is not sent.
+
+If a scene's characters have on-disk
+:class:`~biscuit.models.CharacterReference` files, this provider switches
+to ``/v1/images/edits`` multipart. One file is posted as ``image``;
+several files use repeated ``image[]`` parts, matching the official
+Images API examples. That protocol stays inside this module.
 """
 
 from __future__ import annotations
@@ -201,10 +206,17 @@ class OpenAIImageProvider(ImageProvider):
         files: list[tuple[str, tuple[str, Any, str]]] = []
         opened: list[Any] = []
         try:
-            for path in reference_paths:
+            if len(reference_paths) == 1:
+                path = reference_paths[0]
                 handle = path.open("rb")
                 opened.append(handle)
-                files.append(("image[]", (path.name, handle, "application/octet-stream")))
+                files.append(("image", (path.name, handle, "application/octet-stream")))
+            else:
+                # Official Images API multi-reference edits use repeated image[] parts.
+                for path in reference_paths:
+                    handle = path.open("rb")
+                    opened.append(handle)
+                    files.append(("image[]", (path.name, handle, "application/octet-stream")))
             data = {
                 "model": self._config.model,
                 "prompt": prompt,

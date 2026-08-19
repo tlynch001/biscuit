@@ -21,6 +21,8 @@ image:
   # "development" draws cinematic placeholder stills (no API, no cost).
   # "openai" calls the OpenAI Images API (gpt-image-2). Requires OPENAI_API_KEY
   # and spends credits. Never the default — set this explicitly to opt in.
+  # GPT Image is requested at the documented landscape size 1536x1024, then
+  # cover-cropped locally to this canvas.
   provider: development
   width: 1920
   height: 1080
