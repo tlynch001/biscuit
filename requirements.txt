@@ -1,0 +1,10 @@
+# Core runtime dependencies for Biscuit.
+#
+# Voice synthesis (ElevenLabs) is a plain HTTPS call with `requests`.
+# Video assembly shells out to the `ffmpeg` CLI, which must be installed
+# separately (e.g. `apt install ffmpeg` / `brew install ffmpeg`).
+
+requests>=2.31,<3
+PyYAML>=6.0,<7
+Pillow>=10.0
+python-dotenv>=1.0,<2

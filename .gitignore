@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets — never commit these
+.env
+*.env.local
+
+# YouTube OAuth client secret / cached refresh token
+secrets/*
+!secrets/.gitkeep
+
+# Local configuration copied from config.example.yaml
+config/config.yaml
+
+# Generated pipeline output and logs
+output/
+logs/*
+!logs/.gitkeep
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/

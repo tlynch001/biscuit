@@ -1,0 +1,72 @@
+# Biscuit configuration
+#
+# Copy this file to config/config.yaml (git-ignored) and adjust as needed.
+# Nothing in here should ever be a secret or API key. YAML references an
+# environment variable *name* (e.g. api_key_env: ELEVENLABS_API_KEY) and
+# biscuit/config.py resolves the value from the process environment or a
+# local git-ignored .env file.
+
+output_dir: output
+log_dir: logs
+characters_dir: characters
+
+# Reuse output/<story_id>/ across runs so expensive assets can be skipped.
+# Pass --new-run on the CLI to isolate a timestamped copy instead.
+reuse_previous_run: true
+
+story_provider:
+  provider: template
+
+image:
+  # "development" draws cinematic placeholder stills (no API, no cost).
+  # "openai" calls the OpenAI Images API (gpt-image-2). Requires OPENAI_API_KEY
+  # and spends credits. Never the default — set this explicitly to opt in.
+  # gpt-image-2 requests 1920x1088 (closest valid multiple-of-16 size) and
+  # cover-crops locally to this 1920x1080 canvas. Older GPT Image models
+  # still use the fixed enum (1536x1024 landscape).
+  provider: development
+  width: 1920
+  height: 1080
+  openai:
+    model: gpt-image-2
+    # low | medium | high | auto — medium is the cost-conscious default.
+    quality: medium
+    api_key_env: OPENAI_API_KEY
+    timeout_seconds: 180
+    max_retries: 2
+
+narration:
+  # "development" runs without paid APIs (espeak-ng if installed, otherwise
+  # timed silence). "elevenlabs" requires ELEVENLABS_API_KEY.
+  provider: development
+  words_per_minute: 170
+  pause_between_scenes_seconds: 0.35
+  elevenlabs:
+    voice_id: "21m00Tcm4TlvDq8ikWAM"
+    model_id: eleven_multilingual_v2
+    stability: 0.5
+    similarity_boost: 0.75
+    api_key_env: ELEVENLABS_API_KEY
+
+video:
+  assembler: ffmpeg
+  width: 1920
+  height: 1080
+  fps: 30
+  encoder_preset: veryfast
+  fade_seconds: 0.45
+  default_motion: slow_zoom_in
+  default_transition: fade
+
+publishing:
+  thumbnail_enabled: true
+  title_enabled: true
+  description_enabled: true
+
+youtube:
+  enabled: false
+  privacy: unlisted
+  # 1 = Film & Animation
+  category_id: "1"
+  client_secret_path: secrets/youtube_client_secret.json
+  token_path: secrets/youtube_token.json

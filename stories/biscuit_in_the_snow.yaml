@@ -1,0 +1,260 @@
+id: biscuit_in_the_snow
+title: Biscuit in the Snow
+target_duration_seconds: 270
+tone: cinematic sentimental internet melodrama
+setting:
+  location: small-town county courthouse square
+  weather: heavy snowstorm, drifting wind
+  era: contemporary
+  time_of_day: last light of a winter afternoon into blue dusk
+  notes: brick courthouse, bronze soldier under ice, warm windows far above the steps
+visual_style:
+  medium: cinematic still photograph, shallow depth of field, filmic grain
+  lighting: cold blue snow light with rare warm tungsten from courthouse windows
+  color: muted navy, steel, cream, and a single red accent from the bandana
+  camera: intimate 16:9 anamorphic still, restrained, no handheld chaos
+  extra: sentimental, slightly overwrought, internet-melodrama sincerity
+narration:
+  voice: warm documentary narrator
+  pov: close third person, Biscuit-centered
+  notes: slow, sincere, unafraid of feeling too much
+scene_constraints:
+  min_scenes: 8
+  max_scenes: 16
+  avoid:
+    - gore
+    - graphic injury
+    - on-screen violence
+    - political messaging
+    - comedy wink at the audience
+    - readable text or signage
+characters:
+  - from: biscuit.yaml
+  - id: veteran
+    name: the Veteran
+    species: human
+    role: stranded older man
+    summary: An older wheelchair-using veteran caught outside the courthouse as the storm closes in.
+    appearance:
+      age_look: late seventies
+      build: thin, folded into a manual wheelchair
+      clothing: worn olive wool coat too thin for the weather, gray scarf, scuffed gloves
+      distinctive:
+        - silver-gray beard dusted with snow
+        - small flag pin on the lapel
+        - wheelchair wheels locked in ice
+    personality:
+      - exhausted
+      - proud
+      - quietly undone by the cold
+    visual_anchors:
+      - same man in every frame; gray beard, olive coat, wheelchair
+      - never standing; he remains in the chair until others lift him
+  - id: clerk
+    name: the Clerk
+    species: human
+    role: late-working courthouse employee
+    summary: A woman who stayed too late, and who still follows a dog when it asks.
+    appearance:
+      age_look: early fifties
+      clothing: gray wool sweater, practical coat thrown on over indoor clothes
+      distinctive:
+        - dark hair coming loose from a clip
+        - glasses fogging in the cold
+    personality:
+      - startled
+      - decent
+      - suddenly fierce
+    visual_anchors:
+      - same woman; gray sweater, fogging glasses, indoor shoes in snow
+beats:
+  - id: opening
+    title: The Last Pale Afternoon
+    emotion: quiet wonder
+    characters: [biscuit]
+    motion: slow_zoom_in
+    transition: fade
+    visual: >
+      Wide cinematic still of a small-town courthouse in a heavy snowfall.
+      Biscuit, a small cream-gold retriever mix with a faded red bandana,
+      walks the empty square. Brick, bronze, and white. Bandana the only warm color.
+    narration: >
+      In the last light of a dying afternoon, snow came down over the old county
+      courthouse as if the sky itself had grown tired of holding it. Biscuit moved
+      through the white the way a small dog does when the world has gone quiet—nose
+      low, paws careful, his red winter bandana the only warm color on the square.
+      He was not lost. He was simply out, as he often was, making his rounds of a
+      town that had learned, without quite saying so, to expect him.
+  - id: empty_square
+    title: Something Wrong in the Weather
+    emotion: unease
+    characters: [biscuit]
+    motion: pan_right
+    visual: >
+      Empty courthouse steps, buried benches, a bronze soldier hooded in ice.
+      Biscuit paused at the foot of the building, head lifted into the wind.
+    narration: >
+      The steps were empty. The benches were empty. Even the bronze soldier in the
+      little park had vanished under a hood of ice. Biscuit paused at the foot of
+      the courthouse and lifted his head. Something in the air was wrong—not a scent
+      he could name, but a stillness that did not belong to weather.
+  - id: the_figure
+    title: A Shape That Did Not Belong
+    emotion: shock and concern
+    characters: [biscuit, veteran]
+    motion: slow_zoom_in
+    visual: >
+      Side of the courthouse where wind piled snow into a wall. A wheelchair
+      half-buried. An older man inside it, chin on his chest, olive coat too thin,
+      one gloved hand hanging toward the ground.
+    narration: >
+      Then he saw it. A wheelchair, half-buried at the side of the building, where
+      the wind piled the snow into a drifting wall. Inside it, a man. Older. Chin
+      on his chest. Coat too thin for a storm like this. One gloved hand had slipped
+      from the armrest and hung toward the ground, as if he had been reaching for
+      something and run out of strength before he found it.
+  - id: approach
+    title: The Way Good Dogs Go
+    emotion: tenderness
+    characters: [biscuit, veteran]
+    motion: slow_zoom_in
+    visual: >
+      Close cinematic still: Biscuit nosing the hanging gloved hand. Snow on the
+      knuckles. Red bandana. The man's face turned slightly, unmoving, lashes iced.
+    narration: >
+      Biscuit went to him the way good dogs go toward trouble—without a speech,
+      without a plan, only the certainty that a living thing should not be left
+      alone in the cold. He nosed the hanging hand. It was stiff with winter. He
+      licked the knuckles, once, twice, and made a small sound that was not quite
+      a bark. The man did not move.
+  - id: the_pin
+    title: A Name He Could Not Read
+    emotion: recognition
+    characters: [biscuit, veteran]
+    motion: pan_left
+    visual: >
+      Detail still of the olive coat: snow in the folds, a tiny flag pin, a worn
+      name tape half-hidden. Biscuit's cream muzzle in the foreground, breath smoking.
+    narration: >
+      Snow collected in the folds of the olive coat. On the lapel, a tiny pin caught
+      what light was left, and a name, half-hidden, stitched into a worn strip of
+      fabric. Biscuit could not read it. He did not need to. He knew the shape of a
+      person who had been forgotten by the hour, if not by the world.
+  - id: alarm
+    title: A Sound Like a Stone Into Water
+    emotion: urgency
+    characters: [biscuit, veteran]
+    motion: slow_zoom_out
+    visual: >
+      Biscuit barking, paws on the man's knee, wheelchair wheels locked in ice,
+      courthouse windows glowing far above, unreachable and warm.
+    narration: >
+      Biscuit barked. The sound vanished into the storm like a stone into deep water.
+      He barked again, sharper, turning in a frantic circle, then put his paws up on
+      the man's knee. Still nothing. The wheelchair's wheels were locked in ice. The
+      courthouse windows glowed far above them, warm and unreachable.
+  - id: seeking_help
+    title: Toward the Light
+    emotion: determination
+    characters: [biscuit]
+    motion: pan_right
+    visual: >
+      Biscuit scrambling up buried courthouse steps, red bandana flying, throwing
+      himself against great wooden doors in the blizzard.
+    narration: >
+      So Biscuit ran. He ran toward the light. Up the buried steps, slipping,
+      scrambling, red bandana flying. He threw himself against the great wooden doors
+      and barked until his voice broke. Inside, someone—a clerk, a janitor, a person
+      who had stayed too late—heard a sound that did not belong to the weather.
+  - id: the_door
+    title: Warm Air, and a Hem of a Coat
+    emotion: hope
+    characters: [biscuit, clerk]
+    motion: slow_zoom_in
+    visual: >
+      Courthouse door opening. Warm tungsten spilling onto snow. A woman in a gray
+      sweater staring down at a snow-covered dog. Biscuit gently gripping her coat hem.
+    narration: >
+      The door opened a crack, then wider. Warm air poured out. A woman in a gray
+      sweater stared down at a snow-covered dog making a noise like the end of the
+      world. Biscuit did not wait to be understood in words. He seized the hem of
+      her coat in his teeth, gently, insistently, and pulled toward the dark.
+  - id: discovery
+    title: A Heart Arriving Late
+    emotion: rescue
+    characters: [biscuit, veteran, clerk]
+    motion: slow_zoom_in
+    visual: >
+      Around the corner of the courthouse: the clerk on her knees in the drift
+      beside the wheelchair, Biscuit standing watch, snow exploding in the streetlamp.
+    narration: >
+      She followed because some people still follow a dog when it asks. Down the
+      steps, around the corner, into the drift. When she saw the man, she made a
+      sound Biscuit recognized—the human sound of a heart arriving late and all at
+      once. She dropped to her knees in the snow. She called the man's name, which
+      Biscuit did not know, and then she called for help, which he did.
+  - id: hands
+    title: The Blanket That Waited All Winter
+    emotion: community
+    characters: [biscuit, veteran, clerk]
+    motion: pan_left
+    visual: >
+      Several figures gathering: a security officer, a young intern on a phone,
+      a forgotten hallway blanket opening over the man. Ice cracking from the wheels.
+      Biscuit planted in the storm like a posted sentry.
+    narration: >
+      They came. A security officer. A young intern with a phone already at his ear.
+      Someone with a blanket that had been hanging forgotten in a hallway all winter,
+      waiting for this exact minute. Hands lifted. Ice cracked from the wheels. The
+      man's eyes opened, slow as thaw, and found first the woman, then the ceiling
+      of snow, then the small gold dog standing in the storm as if he had been posted
+      there by God.
+  - id: the_look
+    title: An Old Soldier and a Dog
+    emotion: emotional peak
+    characters: [biscuit, veteran]
+    motion: slow_zoom_in
+    visual: >
+      Extreme close cinematic still: the Veteran's clumsy cold fingers in Biscuit's
+      russet ear. Their faces close. Courthouse and sirens fallen away. Snow as bokeh.
+    narration: >
+      He could not speak. He did not have to. His fingers, clumsy with cold, found
+      Biscuit's ear and stayed there, trembling. Biscuit leaned in. For a moment the
+      courthouse, the storm, the sirens beginning somewhere down the hill—all of it
+      fell away, and there was only an old soldier and a dog who had refused to walk
+      past him.
+  - id: aftermath
+    title: Until the Shaking Stopped
+    emotion: catharsis
+    characters: [biscuit, veteran, clerk]
+    motion: slow_zoom_out
+    visual: >
+      Inside the courthouse lobby: heat, hanging coats, a paper cup steaming.
+      Wheelchair on wet tile. Biscuit sitting against the wheel. The clerk speaking
+      without stopping. Snow melting off Biscuit's bandana.
+    narration: >
+      They got him inside. Heat. Light. A paper cup of something that steamed. The
+      woman kept saying, He was out there. He was just out there. Nobody asked how
+      long. Nobody wanted the answer. Biscuit sat by the wheelchair as if the job
+      were not finished, because to him it wasn't, not until the shaking stopped.
+  - id: closing
+    title: The Snow Makes Room
+    emotion: sentimental resolve
+    characters: [biscuit]
+    motion: pan_right
+    visual: >
+      Night. Streetlamps coming on one by one over the square. Snow already filling
+      the place where the wheelchair had been. Biscuit on the steps, shaking ice
+      from his coat, looking back once, then walking home through a path the storm
+      seems to open.
+    narration: >
+      Later, when they had taken the man toward a building with better doors than a
+      courthouse, Biscuit returned to the steps. Snow was already filling the place
+      where the wheelchair had been, as snow will, as if nothing had happened. But
+      something had. In a town that often hurried past its own quiet emergencies, a
+      small dog with a red bandana had stopped. And because he stopped, a man who
+      might have become another white shape in the storm would see morning. The
+      streetlamps came on, one by one, like people deciding to be kind. Biscuit shook
+      the ice from his coat, looked once more at the empty corner, and started
+      home—slowly, the way you walk when you have done a thing that mattered, and
+      the snow, for once, seemed to make room.
