@@ -5,6 +5,7 @@ Usage::
     python -m biscuit.cli --story stories/biscuit_in_the_snow.yaml
     python -m biscuit.cli --config config/config.yaml --story stories/biscuit_in_the_snow.yaml
     python -m biscuit.cli --story stories/biscuit_in_the_snow.yaml --from-stage assemble --force
+    python -m biscuit.cli --story stories/biscuit_in_the_snow.yaml --regenerate-image 4
 """
 
 from __future__ import annotations
@@ -71,7 +72,29 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Write into a timestamped output subdirectory instead of reusing output/<story_id>/.",
     )
+    parser.add_argument(
+        "--regenerate-image",
+        action="append",
+        type=_positive_scene_index,
+        dest="regenerate_images",
+        metavar="N",
+        default=None,
+        help=(
+            "1-based scene index to regenerate even when a cached PNG exists. "
+            "Repeatable. Paid image providers otherwise reuse stale stills to avoid extra API spend."
+        ),
+    )
     return parser
+
+
+def _positive_scene_index(value: str) -> int:
+    try:
+        index = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"scene index must be an integer, got {value!r}") from exc
+    if index < 1:
+        raise argparse.ArgumentTypeError("scene indexes are 1-based (the number in 001.png, 002.png, …).")
+    return index
 
 
 def _resolve_config_path(explicit: str | None) -> Path:
@@ -110,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
             force=args.force,
             dry_run=args.dry_run,
             new_run=args.new_run,
+            regenerate_images=args.regenerate_images or [],
         )
     except ConfigurationError as exc:
         logger.error("Configuration error: %s", exc)

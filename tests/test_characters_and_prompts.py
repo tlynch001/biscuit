@@ -40,6 +40,10 @@ def test_prompts_propagate_character_into_every_relevant_scene(
         assert "Biscuit" in prompt
         assert "bandana" in prompt.lower()
         assert "cream-gold" in prompt or "cream" in prompt.lower()
+        assert "16:9" in prompt
+        assert "No text" in prompt
+        assert "Continuity" in prompt
+        assert "image provider supports" not in prompt.lower()
         veteran_scenes_should_differ = "veteran" in scene.character_ids
         if veteran_scenes_should_differ:
             assert "Veteran" in prompt or "olive" in prompt.lower()
@@ -53,6 +57,7 @@ def test_prompt_does_not_invent_absent_characters(mini_story_path, repo_root) ->
     prompt = build_image_prompt(last, characters=manifest.character_map(), spec=spec)
     assert "Biscuit" in prompt
     assert "Veteran" not in prompt
+    assert "Must remain consistent" in prompt
 
 
 def test_join_script_uses_blank_line_separators() -> None:

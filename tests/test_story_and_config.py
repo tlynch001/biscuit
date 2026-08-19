@@ -91,6 +91,9 @@ def test_load_config_defaults_and_youtube_disabled(tmp_path: Path) -> None:
     config = load_config(path)
     assert config.youtube.enabled is False
     assert config.narration.provider == "development"
+    assert config.image.provider == "development"
+    assert config.image.openai.model == "gpt-image-2"
+    assert config.image.openai.api_key_env == "OPENAI_API_KEY"
     assert config.image.width == 1920
     assert config.video.fps == 30
 
@@ -114,7 +117,52 @@ def test_invalid_youtube_privacy(tmp_path: Path) -> None:
         load_config(path)
 
 
+def test_openai_image_config_parsed(tmp_path: Path) -> None:
+    path = tmp_path / "config.yaml"
+    path.write_text(
+        "\n".join(
+            [
+                "image:",
+                "  provider: openai",
+                "  openai:",
+                "    model: gpt-image-2",
+                "    quality: high",
+                "    api_key_env: MY_OPENAI_KEY",
+                "    timeout_seconds: 90",
+                "    max_retries: 1",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    config = load_config(path)
+    assert config.image.provider == "openai"
+    assert config.image.openai.model == "gpt-image-2"
+    assert config.image.openai.quality == "high"
+    assert config.image.openai.api_key_env == "MY_OPENAI_KEY"
+    assert config.image.openai.timeout_seconds == 90
+    assert config.image.openai.max_retries == 1
+    # Loading config must not require the secret to be present.
+    assert config.image.openai.resolve_api_key(required=False) is None
+
+
+def test_openai_inline_api_key_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "config.yaml"
+    path.write_text("image:\n  openai:\n    api_key: sk-this-should-never-be-here\n", encoding="utf-8")
+    with pytest.raises(ConfigurationError, match="secret"):
+        load_config(path)
+
+
+def test_openai_invalid_quality_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "config.yaml"
+    path.write_text("image:\n  openai:\n    quality: ultra\n", encoding="utf-8")
+    with pytest.raises(ConfigurationError, match="quality"):
+        load_config(path)
+
+
 def test_example_config_loads(repo_root: Path) -> None:
     config = load_config(repo_root / "config" / "config.example.yaml")
     assert config.youtube.enabled is False
+    assert config.image.provider == "development"
+    assert config.image.openai.api_key_env == "OPENAI_API_KEY"
     assert config.narration.elevenlabs.api_key_env == "ELEVENLABS_API_KEY"
+    assert config.narration.elevenlabs.model_id == "eleven_multilingual_v2"

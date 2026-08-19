@@ -2,7 +2,23 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from biscuit.cli import main
+import pytest
+
+from biscuit.cli import build_arg_parser, main
+
+
+def test_cli_regenerate_image_parses() -> None:
+    parser = build_arg_parser()
+    args = parser.parse_args(
+        ["--story", "stories/x.yaml", "--regenerate-image", "4", "--regenerate-image", "7"]
+    )
+    assert args.regenerate_images == [4, 7]
+
+
+def test_cli_regenerate_image_rejects_zero() -> None:
+    parser = build_arg_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--story", "stories/x.yaml", "--regenerate-image", "0"])
 
 
 def test_gitignore_and_env_example_keep_secrets_out(repo_root: Path) -> None:
@@ -23,8 +39,12 @@ def test_gitignore_and_env_example_keep_secrets_out(repo_root: Path) -> None:
     example_config = (repo_root / "config" / "config.example.yaml").read_text(encoding="utf-8")
     assert "api_key:" not in example_config
     assert "ELEVENLABS_API_KEY" in example_config
+    assert "OPENAI_API_KEY" in example_config
+    assert "api_key_env: OPENAI_API_KEY" in example_config
+    assert "provider: development" in example_config
     assert "youtube:" in example_config
     assert "enabled: false" in example_config
+    assert "eleven_multilingual_v2" in example_config
 
 
 def test_repo_does_not_contain_dotenv(repo_root: Path) -> None:

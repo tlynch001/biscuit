@@ -18,9 +18,19 @@ story_provider:
   provider: template
 
 image:
+  # "development" draws cinematic placeholder stills (no API, no cost).
+  # "openai" calls the OpenAI Images API (gpt-image-2). Requires OPENAI_API_KEY
+  # and spends credits. Never the default — set this explicitly to opt in.
   provider: development
   width: 1920
   height: 1080
+  openai:
+    model: gpt-image-2
+    # low | medium | high | auto — medium is the cost-conscious default.
+    quality: medium
+    api_key_env: OPENAI_API_KEY
+    timeout_seconds: 180
+    max_retries: 2
 
 narration:
   # "development" runs without paid APIs (espeak-ng if installed, otherwise

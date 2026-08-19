@@ -2,18 +2,13 @@
 
 Character identity is assembled once from the character library and injected
 into every scene that includes that character. Vendor-specific reference
-image flags never appear here.
+image flags never appear here — reference files travel on
+:class:`~biscuit.models.CharacterReference` instead.
 """
 
 from __future__ import annotations
 
 from biscuit.models import Character, Scene, StoryManifest, StorySpec
-
-
-_NEGATIVE = (
-    "no text, no captions, no subtitles, no watermark, no logo, "
-    "no extra limbs, no deformed faces"
-)
 
 
 def build_image_prompt(
@@ -25,29 +20,47 @@ def build_image_prompt(
     present = [characters[cid] for cid in scene.character_ids if cid in characters]
     style = spec.visual_style.prompt_preamble()
     setting = spec.setting.prompt_line()
-    lines = [
-        style,
-        f"Setting: {setting}" if setting else "",
-        f"Tone: {spec.tone}" if spec.tone else "",
-        f"Emotional intent: {scene.emotion}" if scene.emotion else "",
-        scene.visual_description.strip(),
-    ]
+    camera = getattr(spec.visual_style, "camera", "") or "intimate 16:9 cinematic framing"
+
+    sections: list[str] = []
+    visual = scene.visual_description.strip()
+    if visual:
+        sections.append(visual)
+
+    meta_lines = []
+    if setting:
+        meta_lines.append(f"Setting: {setting}")
+    if style:
+        meta_lines.append(f"Visual style: {style}")
+    if spec.tone:
+        meta_lines.append(f"Tone: {spec.tone}")
+    if scene.emotion:
+        meta_lines.append(f"Emotional intent: {scene.emotion}")
+    meta_lines.append(f"Shot: 16:9 landscape cinematic still, {camera}. Photoreal film still, not illustration.")
+    sections.append("\n".join(meta_lines))
+
     if present:
-        lines.append("Characters in frame (keep identity consistent across scenes):")
+        char_lines = [
+            "Characters in this frame — keep identity identical in every scene of this film:"
+        ]
         for character in present:
-            lines.append(f"- {character.consistency_block()}")
-            if character.references:
-                kinds = ", ".join(ref.kind for ref in character.references)
-                lines.append(
-                    f"  Reference images available for {character.name} ({kinds}); "
-                    "use them if the image provider supports character references."
-                )
+            char_lines.append(f"- {character.consistency_block()}")
+        sections.append("\n".join(char_lines))
+        sections.append(
+            "Continuity: same characters, same approximate size and build, same coat or wardrobe, "
+            "same markings and face. Do not invent extra animals, people, or props that change identity."
+        )
+
     avoid = getattr(spec, "constraints", None)
     avoid_list = avoid.avoid if avoid is not None else []
     if avoid_list:
-        lines.append("Avoid: " + "; ".join(avoid_list))
-    lines.append(_NEGATIVE)
-    return "\n".join(line for line in lines if line).strip()
+        sections.append("Avoid: " + "; ".join(avoid_list))
+
+    sections.append(
+        "No text, captions, subtitles, watermark, logo, title card, or signage. "
+        "Fill a 16:9 frame."
+    )
+    return "\n\n".join(section for section in sections if section).strip()
 
 
 def apply_prompts(manifest: StoryManifest, spec: StorySpec) -> StoryManifest:

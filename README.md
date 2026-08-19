@@ -120,11 +120,49 @@ are rejected.
 
 Defaults that matter:
 
-- `image.provider: development`
+- `image.provider: development` (safe; no paid image calls)
 - `narration.provider: development`
 - `story_provider.provider: template`
 - `youtube.enabled: false`
 - video 1920×1080 at 30 fps
+- ElevenLabs model stays `eleven_multilingual_v2` (not v3)
+
+### Image providers
+
+**Safe development mode** (default):
+
+```yaml
+image:
+  provider: development
+```
+
+**Real image generation** (explicit opt-in; requires `OPENAI_API_KEY`):
+
+```yaml
+image:
+  provider: openai
+  openai:
+    model: gpt-image-2
+    quality: medium
+    api_key_env: OPENAI_API_KEY
+```
+
+`gpt-image-2` requires each edge to be a multiple of 16, so 1920×1080 is
+requested as **1920×1088** and then cover-cropped (4px) to the 1920×1080
+video canvas. Nothing is stretched. If a future model returns a different
+size, the same cover-crop path runs.
+
+Image cache lives next to the PNGs (`work/NNN.image.hash`). A matching hash
+skips the API. If the prompt, size, provider, model, quality, or reference
+files change:
+
+- **development** regenerates automatically (free)
+- **openai** *reuses* the existing PNG and warns, so a config flip cannot
+  quietly spend a full story. Pass `--regenerate-image N` or `--force` to
+  spend on purpose.
+
+The exact prompt sent to the API is `image_prompts/NNN.txt`. If the API
+returns a `revised_prompt`, that is stored as `image_prompts/NNN.revised.txt`.
 
 ## Environment variables
 
@@ -138,7 +176,7 @@ OPENAI_API_KEY=
 | Variable | When it is needed |
 | --- | --- |
 | `ELEVENLABS_API_KEY` | `narration.provider: elevenlabs` |
-| `OPENAI_API_KEY` | Reserved for a future LLM story provider. Unused in Phase 1. |
+| `OPENAI_API_KEY` | `image.provider: openai` (also reserved for a future LLM story provider) |
 
 YouTube does **not** use an env var. It uses OAuth files under `secrets/`
 (also git-ignored). Never commit `.env`, `config/config.yaml`, or anything in
@@ -153,6 +191,13 @@ Phase 1 is designed to run fully offline:
   The *real* image prompt is still written to `image_prompts/`.
 - **Narration provider `development`** — `espeak-ng` if present, otherwise
   timed silence, plus deterministic `narration_timing.json`.
+
+Switch image generation later without touching the orchestrator:
+
+```yaml
+image:
+  provider: openai
+```
 
 Switch narration later without touching the orchestrator:
 
@@ -179,6 +224,7 @@ Useful flags:
 | `--through-stage STAGE` | Stop after a stage |
 | `--force` | Ignore caches inside the selected range |
 | `--new-run` | Isolate this run in a timestamped subdirectory |
+| `--regenerate-image N` | Rebuild only scene `N` (1-based, repeatable). Other scene images stay cached. |
 
 Examples:
 
@@ -188,6 +234,24 @@ python -m biscuit.cli --story stories/biscuit_in_the_snow.yaml --from-stage asse
 
 # Stop after prompts so you can edit image_prompts/*.txt
 python -m biscuit.cli --story stories/biscuit_in_the_snow.yaml --through-stage prompts
+
+# Scene 4 looks wrong: redo only that still, then continue (assemble sees the new PNG)
+python -m biscuit.cli \
+  --config config/config.yaml \
+  --story stories/biscuit_in_the_snow.yaml \
+  --regenerate-image 4
+```
+
+First **paid** single-scene test (after `image.provider: openai` and `.env` has
+`OPENAI_API_KEY`). Do not run this unless you intend to spend a credit:
+
+```bash
+python -m biscuit.cli \
+  --config config/config.yaml \
+  --story stories/biscuit_in_the_snow.yaml \
+  --from-stage illustrate \
+  --through-stage illustrate \
+  --regenerate-image 1
 ```
 
 Stages: `parse`, `expand`, `prompts`, `narrate`, `illustrate`, `assemble`,
@@ -204,9 +268,9 @@ output/<story_id>/
   script.txt
   narration.mp3
   narration_timing.json
-  image_prompts/001.txt ...
+  image_prompts/001.txt ...          # exact prompt sent (plus optional .revised.txt)
   scenes/001.png ...
-  work/                 # intermediate clips
+  work/                 # image hash stamps, assemble fingerprint, clips
   video.mp4
   thumbnail.png
   title.txt
@@ -228,20 +292,30 @@ class TemplateStoryProvider(StoryProvider):
     def expand(self, spec: StorySpec) -> StoryManifest: ...
 ```
 
-A future OpenAI / Grok / Claude story expander, Flux/SD image backend, or
-another TTS vendor registers the same way. The pipeline constructs providers
-from config and never imports a vendor SDK at the orchestration layer.
+A future OpenAI / Grok / Claude story expander or another TTS vendor
+registers the same way. The production image provider is **openai**
+(`gpt-image-2` via the Images API). The pipeline constructs providers from
+config and never imports a vendor SDK at the orchestration layer.
 
 Image requests include:
 
 - the scene
-- the fully built prompt
+- the fully built prompt (visual description, setting, style, character
+  consistency blocks, continuity, 16:9 / no-text guidance)
 - resolved `Character` objects
-- `CharacterReference` paths (if the library provided any)
+- opaque `CharacterReference` paths (if the library provided any)
+
+If those reference files exist on disk, the OpenAI provider switches to
+`/v1/images/edits` so they can be used as identity references. That
+multipart protocol stays inside `biscuit/providers/image_openai.py`. The
+character library currently ships `references: []`; without files, the
+provider uses strong structured prompts only. GPT Image does not guarantee
+character identity across scenes.
 
 ElevenLabs support is implemented against the `text-to-speech/{id}/with-timestamps`
 endpoint. Alignment is mapped onto scene paragraphs (the same blank-line
-script structure written to `script.txt`).
+script structure written to `script.txt`). Biscuit uses
+`eleven_multilingual_v2` on purpose; do not switch it to v3.
 
 ## YouTube
 
@@ -265,21 +339,24 @@ at `secrets/youtube_client_secret.json`, run once interactively to cache
 
 ## What is implemented vs deferred
 
-**Implemented in Phase 1**
+**Implemented**
 
 - Story YAML schema, validation, character library
-- Scene manifest + script + image prompts
-- Development image stills and development/ElevenLabs narration
+- Scene manifest + script + character-consistent image prompts
+- Development image stills and opt-in OpenAI GPT Image (`gpt-image-2`)
+- Development/ElevenLabs narration (`eleven_multilingual_v2`)
 - Narration-driven scene timing
 - FFmpeg assembly with slow pan / zoom-like drift and fades
 - Thumbnail, title, description
 - Optional YouTube uploader behind `enabled: false`
-- Resumable stages, YAML config, `.env` secrets, tests, example story
+- Resumable stages, image hash cache, `--regenerate-image N`
+- YAML config, `.env` secrets, tests, example story
 
 **Intentionally deferred**
 
 - Live LLM story expansion (OpenAI/Grok/Claude)
-- Real image models (Flux, SD, DALL-E, etc.) and vendor reference-image APIs
+- Additional image vendors (Flux, SD, others)
+- Guaranteed character identity without reference images
 - Background music / stems
 - Captions from word timing
 - A GUI, database, or cloud runtime

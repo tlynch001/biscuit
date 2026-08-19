@@ -8,13 +8,14 @@ artifacts so later stages can resume without rerunning paid work.
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 
 from biscuit.artifacts import ArtifactStore, new_run_id
 from biscuit.config import AppConfig
-from biscuit.exceptions import ArtifactError, ConfigurationError
-from biscuit.hashing import sha256_file, sha256_json, sha256_text
-from biscuit.models import StoryManifest, StorySpec, join_script
+from biscuit.exceptions import ArtifactError, ConfigurationError, ImageGenerationError
+from biscuit.hashing import sha256_file, sha256_json
+from biscuit.models import Character, Scene, StoryManifest, StorySpec, join_script
 from biscuit.prompts import apply_prompts
 from biscuit.providers.base import ImageRequest, NarrationRequest
 from biscuit.providers.registry import image_registry, load_builtin_providers, narration_registry, story_registry
@@ -33,7 +34,10 @@ class StoryPipeline:
         load_builtin_providers()
         self._config = config
         self._story_provider = story_registry.create(config.story_provider.name, **config.story_provider.options)
-        self._image_provider = image_registry.create(config.image.provider)
+        image_kwargs: dict[str, object] = {}
+        if config.image.provider == "openai":
+            image_kwargs["openai"] = config.image.openai
+        self._image_provider = image_registry.create(config.image.provider, **image_kwargs)
         narration_kwargs: dict[str, object] = {}
         if config.narration.provider == "elevenlabs":
             narration_kwargs["elevenlabs"] = config.narration.elevenlabs
@@ -49,6 +53,7 @@ class StoryPipeline:
         dry_run: bool = False,
         new_run: bool = False,
         store: ArtifactStore | None = None,
+        regenerate_images: list[int] | None = None,
     ) -> StoryManifest:
         self._validate_stage_range(from_stage, through_stage)
         spec = load_story(story_path, characters_dir=self._config.characters_dir)
@@ -69,7 +74,9 @@ class StoryPipeline:
             return stage_index(from_stage) <= stage_index(stage) <= stage_index(through_stage)
 
         if dry_run:
-            self._log_dry_run(spec, store, from_stage, through_stage, force)
+            self._log_dry_run(
+                spec, store, from_stage, through_stage, force, regenerate_images=regenerate_images
+            )
             if store.manifest_path.exists():
                 return store.read_manifest()
             # Expand in memory so callers (and tests) still get a manifest.
@@ -87,8 +94,14 @@ class StoryPipeline:
             manifest = self._run_prompts(spec, manifest, store, force)
         if should("narrate"):
             manifest = self._run_narrate(manifest, store, force)
+        if regenerate_images and not should("illustrate"):
+            logger.warning(
+                "--regenerate-image is ignored because illustrate is outside the selected stage range."
+            )
         if should("illustrate"):
-            manifest = self._run_illustrate(manifest, store, force)
+            manifest = self._run_illustrate(
+                manifest, store, force, regenerate_images=regenerate_images or []
+            )
         if should("assemble"):
             self._run_assemble(manifest, store, force)
         if should("package"):
@@ -197,47 +210,188 @@ class StoryPipeline:
         )
         return manifest
 
-    def _run_illustrate(self, manifest: StoryManifest, store: ArtifactStore, force: bool) -> StoryManifest:
-        characters = manifest.character_map()
-        logger.info("Generating %d scene images via %s provider", len(manifest.scenes), self._image_provider.name)
-        for scene in manifest.scenes:
-            output = store.scene_image_path(scene.index)
-            prompt_hash = sha256_text(scene.image_prompt + f"|{self._config.image.width}x{self._config.image.height}")
-            stamp_path = store.work_dir / f"{scene.index:03d}.image.hash"
-            reused = (
-                output.exists()
-                and stamp_path.exists()
-                and stamp_path.read_text(encoding="utf-8").strip() == prompt_hash
+    def _run_illustrate(
+        self,
+        manifest: StoryManifest,
+        store: ArtifactStore,
+        force: bool,
+        regenerate_images: list[int],
+    ) -> StoryManifest:
+        if self._config.image.provider == "openai":
+            self._config.image.openai.resolve_api_key(required=True)
+
+        known_indexes = {scene.index for scene in manifest.scenes}
+        unknown = sorted({index for index in regenerate_images if index not in known_indexes})
+        if unknown:
+            valid = f"{min(known_indexes)}-{max(known_indexes)}" if known_indexes else "none"
+            raise ConfigurationError(
+                f"--regenerate-image scene(s) not in this story: {unknown}. Valid indexes are {valid}."
             )
-            if reused and not force:
-                logger.info("Reusing %s", output)
-            else:
-                present = [characters[cid] for cid in scene.character_ids if cid in characters]
-                references = [ref for character in present for ref in character.references]
-                self._image_provider.generate(
-                    ImageRequest(
-                        scene=scene,
-                        prompt=scene.image_prompt,
-                        characters=present,
-                        references=references,
-                        width=self._config.image.width,
-                        height=self._config.image.height,
-                    ),
-                    output,
+
+        characters = manifest.character_map()
+        regenerate_set = set(regenerate_images)
+        paid = self._image_provider.name != "development"
+        width, height = self._config.image.width, self._config.image.height
+        logger.info(
+            "Generating %d scene images via %s provider (%sx%s)",
+            len(manifest.scenes),
+            self._image_provider.name,
+            width,
+            height,
+        )
+        for scene in manifest.scenes:
+            prompt_path = store.scene_prompt_path(scene.index)
+            if prompt_path.exists():
+                disk_prompt = prompt_path.read_text(encoding="utf-8").strip()
+                if disk_prompt:
+                    scene.image_prompt = disk_prompt
+            elif scene.image_prompt:
+                store.write_text(prompt_path, scene.image_prompt)
+
+            present = [characters[cid] for cid in scene.character_ids if cid in characters]
+            output = store.scene_image_path(scene.index)
+            cache_key = self._image_cache_hash(scene, present)
+            stamp_path = store.work_dir / f"{scene.index:03d}.image.hash"
+            force_this = force or scene.index in regenerate_set
+            stamp_matches = (
+                stamp_path.exists() and stamp_path.read_text(encoding="utf-8").strip() == cache_key
+            )
+
+            if output.exists() and stamp_matches and not force_this:
+                logger.info(
+                    "image cache hit scene=%s id=%s provider=%s size=%sx%s reused=true",
+                    scene.index,
+                    scene.id,
+                    self._image_provider.name,
+                    width,
+                    height,
                 )
-                stamp_path.write_text(prompt_hash + "\n", encoding="utf-8")
-                logger.info("Wrote %s", output)
+            elif output.exists() and not stamp_matches and not force_this and paid:
+                logger.warning(
+                    "image cache stale scene=%s id=%s provider=%s — reusing existing PNG to avoid "
+                    "accidental API spend. Pass --regenerate-image %s (or --force) to regenerate.",
+                    scene.index,
+                    scene.id,
+                    self._image_provider.name,
+                    scene.index,
+                )
+            else:
+                references = [ref for character in present for ref in character.references]
+                started = time.monotonic()
+                try:
+                    self._image_provider.generate(
+                        ImageRequest(
+                            scene=scene,
+                            prompt=scene.image_prompt,
+                            characters=present,
+                            references=references,
+                            width=width,
+                            height=height,
+                        ),
+                        output,
+                    )
+                except ImageGenerationError:
+                    raise
+                except Exception as exc:  # noqa: BLE001
+                    raise ImageGenerationError(
+                        f"Image generation failed for {scene.id} (scene {scene.index:03d}): {exc}"
+                    ) from exc
+                if not output.exists():
+                    raise ImageGenerationError(
+                        f"Image provider {self._image_provider.name} did not create {output} "
+                        f"for {scene.id} (scene {scene.index:03d})"
+                    )
+                stamp_path.write_text(cache_key + "\n", encoding="utf-8")
+                logger.info(
+                    "image generated scene=%s id=%s provider=%s size=%sx%s reused=false elapsed=%.1fs",
+                    scene.index,
+                    scene.id,
+                    self._image_provider.name,
+                    width,
+                    height,
+                    time.monotonic() - started,
+                )
             scene.image_path = store.relative(output)
+            scene.image_prompt_path = store.relative(prompt_path)
+        manifest.image_provider = self._image_provider.name
         store.write_manifest(manifest)
         return manifest
 
+    def _image_cache_hash(self, scene: Scene, present: list[Character]) -> str:
+        """Fingerprint of everything that should invalidate a generated still.
+
+        Paid providers treat a mismatch as *stale* (reuse + warn) unless the
+        caller passes ``--force`` or ``--regenerate-image``. Development
+        stills regenerate automatically because they are free.
+        """
+
+        openai = self._config.image.openai
+        references: list[dict[str, object]] = []
+        for character in present:
+            for ref in character.references:
+                entry: dict[str, object] = {
+                    "character_id": character.id,
+                    "kind": ref.kind,
+                    "path": str(ref.path),
+                }
+                if ref.path.exists() and ref.path.is_file():
+                    entry["sha256"] = sha256_file(ref.path)
+                else:
+                    entry["sha256"] = None
+                references.append(entry)
+        payload = {
+            "prompt": scene.image_prompt.strip(),
+            "width": self._config.image.width,
+            "height": self._config.image.height,
+            "provider": self._image_provider.name,
+            "model": openai.model if self._image_provider.name == "openai" else None,
+            "quality": openai.quality if self._image_provider.name == "openai" else None,
+            "references": references,
+        }
+        return sha256_json(payload)
+
     def _run_assemble(self, manifest: StoryManifest, store: ArtifactStore, force: bool) -> None:
-        if store.video_path.exists() and not force:
+        fingerprint = self._assemble_fingerprint(manifest, store)
+        stamp_path = store.work_dir / "assemble.fingerprint"
+        if (
+            store.video_path.exists()
+            and stamp_path.exists()
+            and stamp_path.read_text(encoding="utf-8").strip() == fingerprint
+            and not force
+        ):
             logger.info("Reusing existing video %s", store.video_path)
             return
         logger.info("Assembling video with FFmpeg")
         assemble_video(manifest, store, self._config.video)
+        stamp_path.write_text(fingerprint + "\n", encoding="utf-8")
         logger.info("Wrote %s", store.video_path)
+
+    def _assemble_fingerprint(self, manifest: StoryManifest, store: ArtifactStore) -> str:
+        video = self._config.video
+        scenes_payload = []
+        for scene in manifest.scenes:
+            image = store.scene_image_path(scene.index)
+            scenes_payload.append(
+                {
+                    "index": scene.index,
+                    "image": sha256_file(image) if image.exists() else None,
+                    "duration": scene.duration_seconds,
+                    "motion": scene.motion,
+                    "transition": scene.transition,
+                }
+            )
+        return sha256_json(
+            {
+                "width": video.width,
+                "height": video.height,
+                "fps": video.fps,
+                "encoder_preset": video.encoder_preset,
+                "fade_seconds": video.fade_seconds,
+                "default_motion": video.default_motion,
+                "narration": sha256_file(store.narration_path) if store.narration_path.exists() else None,
+                "scenes": scenes_payload,
+            }
+        )
 
     def _run_package(self, manifest: StoryManifest, store: ArtifactStore, force: bool) -> None:
         if self._config.publishing.title_enabled and (force or not store.title_path.exists()):
@@ -290,6 +444,7 @@ class StoryPipeline:
         from_stage: str,
         through_stage: str,
         force: bool,
+        regenerate_images: list[int] | None = None,
     ) -> None:
         logger.info("Dry run for story %s", spec.id)
         logger.info("Output: %s", store.root)
@@ -301,6 +456,8 @@ class StoryPipeline:
             self._narration_provider.name,
             self._config.youtube.enabled,
         )
+        if regenerate_images:
+            logger.info("Regenerate image scenes: %s", regenerate_images)
         for beat in spec.beats:
             logger.info("  beat %s (%s) characters=%s", beat.id, beat.emotion, ",".join(beat.characters))
 

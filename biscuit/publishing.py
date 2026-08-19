@@ -6,12 +6,16 @@ writes local artifacts and never talks to Google.
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
 from biscuit.exceptions import ImageGenerationError
+from biscuit.image_ops import fit_cover
 from biscuit.models import StoryManifest
+
+logger = logging.getLogger(__name__)
 
 THUMBNAIL_WIDTH = 1280
 THUMBNAIL_HEIGHT = 720
@@ -40,8 +44,8 @@ def generate_description(manifest: StoryManifest) -> str:
         manifest.tone.capitalize() + "." if manifest.tone else "",
         "",
         "This video was produced by Biscuit, an automated story-video pipeline.",
-        "Phase 1 development stills are placeholders for a future image model;",
-        "narration may be a local development voice or ElevenLabs.",
+        "Scene images may be development placeholders or OpenAI GPT Image stills.",
+        "Narration may be a local development voice or ElevenLabs.",
         "",
         "Chapters",
         *chapters,
@@ -76,7 +80,14 @@ def render_thumbnail(manifest: StoryManifest, hero_image: Path | None, output_pa
 
 
 def _base_thumbnail_art(manifest: StoryManifest, hero_image: Path | None) -> Image.Image:
-    """Build a chrome-free cinematic still so labeled development plates stay off YouTube thumbs."""
+    """Prefer a generated scene still when one exists; otherwise a chrome-free placeholder."""
+
+    if hero_image is not None and Path(hero_image).is_file():
+        try:
+            with Image.open(hero_image) as raw:
+                return fit_cover(raw, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Could not use hero image %s for thumbnail (%s); using placeholder.", hero_image, exc)
 
     from biscuit.models import Scene
     from biscuit.providers.base import ImageRequest
@@ -102,8 +113,6 @@ def _base_thumbnail_art(manifest: StoryManifest, hero_image: Path | None) -> Ima
         height=THUMBNAIL_HEIGHT,
         seed=11,
     )
-    # hero_image is reserved for a future photoreal still once an image API exists.
-    _ = hero_image
     return render_placeholder(request, include_copy=False)
 
 

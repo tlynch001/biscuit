@@ -52,11 +52,54 @@ class ProviderConfig:
         return cls(name=name, options=options)
 
 
+_VALID_OPENAI_IMAGE_QUALITY = frozenset({"low", "medium", "high", "auto"})
+
+
+@dataclass
+class OpenAIImageConfig:
+    """Settings for the opt-in OpenAI GPT Image provider.
+
+    Secrets are resolved from ``api_key_env``, never stored in this object
+    as a raw key value.
+    """
+
+    model: str = "gpt-image-2"
+    quality: str = "medium"
+    api_key_env: str = "OPENAI_API_KEY"
+    timeout_seconds: float = 180.0
+    max_retries: int = 2
+
+    @classmethod
+    def from_mapping(cls, data: dict[str, Any] | None) -> OpenAIImageConfig:
+        data = data or {}
+        defaults = cls()
+        quality = str(data.get("quality", defaults.quality))
+        if quality not in _VALID_OPENAI_IMAGE_QUALITY:
+            raise ConfigurationError(
+                "image.openai.quality must be one of "
+                f"{sorted(_VALID_OPENAI_IMAGE_QUALITY)}, got {quality!r}."
+            )
+        max_retries = int(data.get("max_retries", defaults.max_retries))
+        if max_retries < 0:
+            raise ConfigurationError("image.openai.max_retries must be >= 0.")
+        return cls(
+            model=str(data.get("model", defaults.model)),
+            quality=quality,
+            api_key_env=str(data.get("api_key_env", defaults.api_key_env)),
+            timeout_seconds=float(data.get("timeout_seconds", defaults.timeout_seconds)),
+            max_retries=max_retries,
+        )
+
+    def resolve_api_key(self, *, required: bool) -> str | None:
+        return _get_secret(self.api_key_env, required=required)
+
+
 @dataclass
 class ImageConfig:
     provider: str = "development"
     width: int = 1920
     height: int = 1080
+    openai: OpenAIImageConfig = field(default_factory=OpenAIImageConfig)
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any] | None) -> ImageConfig:
@@ -66,6 +109,7 @@ class ImageConfig:
             provider=str(data.get("provider", defaults.provider)),
             width=int(data.get("width", defaults.width)),
             height=int(data.get("height", defaults.height)),
+            openai=OpenAIImageConfig.from_mapping(data.get("openai")),
         )
 
 

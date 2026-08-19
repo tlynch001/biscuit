@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 from biscuit.artifacts import ArtifactStore
 from biscuit.config import ElevenLabsConfig
@@ -20,6 +21,7 @@ def test_builtin_providers_are_registered() -> None:
     load_builtin_providers()
     assert "template" in story_registry.available()
     assert "development" in image_registry.available()
+    assert "openai" in image_registry.available()
     assert "development" in narration_registry.available()
     assert "elevenlabs" in narration_registry.available()
     with pytest.raises(ProviderNotFoundError):
@@ -67,6 +69,45 @@ def test_development_image_writes_png(tmp_path: Path) -> None:
     second = tmp_path / "001b.png"
     DevelopmentImageProvider().generate(request, second)
     assert path.read_bytes() == second.read_bytes()
+
+
+def test_thumbnail_uses_hero_image_without_stretching(tmp_path: Path) -> None:
+    from biscuit.models import Character, NarrationGuidance, Scene, Setting, StoryManifest, VisualStyle
+    from biscuit.publishing import THUMBNAIL_HEIGHT, THUMBNAIL_WIDTH, render_thumbnail
+
+    hero = tmp_path / "hero.png"
+    Image.new("RGB", (1920, 1080), (10, 200, 10)).save(hero)
+    manifest = StoryManifest(
+        version=1,
+        story_id="x",
+        title="Hero Thumb",
+        tone="warm",
+        target_duration_seconds=10,
+        setting=Setting(location="courthouse"),
+        visual_style=VisualStyle(),
+        narration=NarrationGuidance(),
+        characters=[Character(id="biscuit", name="Biscuit", species="dog")],
+        scenes=[
+            Scene(
+                id="scene_001",
+                index=1,
+                beat_id="a",
+                title="Snow",
+                narration="Snow.",
+                visual_description="snow",
+                character_ids=["biscuit"],
+                emotion="peak look",
+                image_path="hero.png",
+            )
+        ],
+    )
+    out = tmp_path / "thumbnail.png"
+    render_thumbnail(manifest, hero, out)
+    with Image.open(out) as img:
+        assert img.size == (THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT)
+        # Overlay covers the lower band; the upper region should keep the hero green.
+        pixel = img.getpixel((20, 20))
+        assert pixel[1] > 150
 
 
 def test_artifact_store_layout(tmp_path: Path) -> None:
