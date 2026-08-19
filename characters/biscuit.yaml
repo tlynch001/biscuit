@@ -1,0 +1,25 @@
+id: biscuit
+name: Biscuit
+species: dog
+role: protagonist
+summary: >
+  A small golden-retriever mix who patrols a snowy town with unearned courage
+  and a faded red bandana.
+appearance:
+  breed: small golden retriever mix
+  coat: cream-gold winter fur, slightly scruffy, russet ears and tail tip
+  eyes: warm dark brown, wet-nosed and earnest
+  age_look: young adult dog
+  distinctive:
+    - faded red cloth winter bandana knotted at the throat
+    - slightly oversized paws
+    - a small nick in the left ear
+personality:
+  - earnest
+  - brave without knowing it
+  - gentle with anyone who is hurting
+visual_anchors:
+  - always the same dog; never change breed, size, markings, or bandana color
+  - bandana is worn red cloth, not a collar tag or bow
+  - cream-gold coat with russet ears in every frame
+references: []

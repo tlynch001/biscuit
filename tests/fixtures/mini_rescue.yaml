@@ -1,0 +1,33 @@
+id: mini_rescue
+title: Mini Rescue
+target_duration_seconds: 20
+tone: sincere
+setting:
+  location: courthouse steps
+  weather: snow
+visual_style:
+  medium: cinematic still
+narration:
+  voice: warm narrator
+characters:
+  - from: biscuit.yaml
+  - id: veteran
+    name: the Veteran
+    species: human
+    appearance:
+      clothing: olive coat
+    visual_anchors:
+      - same older man in a wheelchair
+beats:
+  - id: saw
+    title: He Saw Him
+    emotion: concern
+    characters: [biscuit, veteran]
+    visual: Biscuit finds a man in the snow beside the courthouse.
+    narration: Biscuit found the man in the snow.
+  - id: helped
+    title: He Stayed
+    emotion: resolve
+    characters: [biscuit]
+    visual: Biscuit stands watch in falling snow.
+    narration: He stayed until morning came.
