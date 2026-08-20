@@ -22,6 +22,7 @@ def test_builtin_providers_are_registered() -> None:
     assert "template" in story_registry.available()
     assert "development" in image_registry.available()
     assert "openai" in image_registry.available()
+    assert "xai" in image_registry.available()
     assert "development" in narration_registry.available()
     assert "elevenlabs" in narration_registry.available()
     with pytest.raises(ProviderNotFoundError):

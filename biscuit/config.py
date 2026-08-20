@@ -94,22 +94,106 @@ class OpenAIImageConfig:
         return _get_secret(self.api_key_env, required=required)
 
 
+# Official Grok Imagine aspect ratios and resolutions
+# (https://docs.x.ai/developers/model-capabilities/images/generation).
+_VALID_XAI_ASPECT_RATIOS = frozenset(
+    {
+        "1:1",
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "3:2",
+        "2:3",
+        "2:1",
+        "1:2",
+        "19.5:9",
+        "9:19.5",
+        "20:9",
+        "9:20",
+        "auto",
+    }
+)
+_VALID_XAI_RESOLUTIONS = frozenset({"1k", "2k"})
+
+
+@dataclass
+class XAIImageConfig:
+    """Settings for the opt-in xAI Grok Imagine image provider.
+
+    Secrets are resolved from ``api_key_env``, never stored in this object
+    as a raw key value.
+    """
+
+    model: str = "grok-imagine-image-quality"
+    aspect_ratio: str = "16:9"
+    resolution: str = "2k"
+    api_key_env: str = "XAI_API_KEY"
+    base_url: str = "https://api.x.ai/v1"
+    timeout_seconds: float = 180.0
+    max_retries: int = 2
+
+    @classmethod
+    def from_mapping(cls, data: dict[str, Any] | None) -> XAIImageConfig:
+        data = data or {}
+        defaults = cls()
+        aspect_ratio = str(data.get("aspect_ratio", defaults.aspect_ratio))
+        if aspect_ratio not in _VALID_XAI_ASPECT_RATIOS:
+            raise ConfigurationError(
+                "image.xai.aspect_ratio must be one of "
+                f"{sorted(_VALID_XAI_ASPECT_RATIOS)}, got {aspect_ratio!r}."
+            )
+        resolution = str(data.get("resolution", defaults.resolution))
+        if resolution not in _VALID_XAI_RESOLUTIONS:
+            raise ConfigurationError(
+                "image.xai.resolution must be one of "
+                f"{sorted(_VALID_XAI_RESOLUTIONS)}, got {resolution!r}."
+            )
+        max_retries = int(data.get("max_retries", defaults.max_retries))
+        if max_retries < 0:
+            raise ConfigurationError("image.xai.max_retries must be >= 0.")
+        return cls(
+            model=str(data.get("model", defaults.model)),
+            aspect_ratio=aspect_ratio,
+            resolution=resolution,
+            api_key_env=str(data.get("api_key_env", defaults.api_key_env)),
+            base_url=str(data.get("base_url", defaults.base_url)),
+            timeout_seconds=float(data.get("timeout_seconds", defaults.timeout_seconds)),
+            max_retries=max_retries,
+        )
+
+    def resolve_api_key(self, *, required: bool) -> str | None:
+        env_var = self.api_key_env
+        value = os.environ.get(env_var) if env_var else None
+        if required and not value:
+            raise ConfigurationError(f"xAI image provider selected but {env_var} is not set")
+        return value
+
+
 @dataclass
 class ImageConfig:
     provider: str = "development"
     width: int = 1920
     height: int = 1080
     openai: OpenAIImageConfig = field(default_factory=OpenAIImageConfig)
+    xai: XAIImageConfig = field(default_factory=XAIImageConfig)
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any] | None) -> ImageConfig:
         data = data or {}
         defaults = cls()
+        xai_data = dict(data.get("xai") or {})
+        # Allow a flatter image.model / aspect_ratio / resolution form when
+        # those keys are not already nested under image.xai.
+        for key in ("model", "aspect_ratio", "resolution"):
+            if key not in xai_data and key in data:
+                xai_data[key] = data[key]
         return cls(
             provider=str(data.get("provider", defaults.provider)),
             width=int(data.get("width", defaults.width)),
             height=int(data.get("height", defaults.height)),
             openai=OpenAIImageConfig.from_mapping(data.get("openai")),
+            xai=XAIImageConfig.from_mapping(xai_data),
         )
 
 

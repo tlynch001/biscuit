@@ -135,6 +135,10 @@ def test_load_config_defaults_and_youtube_disabled(tmp_path: Path) -> None:
     assert config.image.provider == "development"
     assert config.image.openai.model == "gpt-image-2"
     assert config.image.openai.api_key_env == "OPENAI_API_KEY"
+    assert config.image.xai.model == "grok-imagine-image-quality"
+    assert config.image.xai.api_key_env == "XAI_API_KEY"
+    assert config.image.xai.aspect_ratio == "16:9"
+    assert config.image.xai.resolution == "2k"
     assert config.image.width == 1920
     assert config.video.fps == 30
     assert config.video.end_hold_seconds == 4.0
@@ -208,6 +212,10 @@ def test_example_config_loads(repo_root: Path) -> None:
     assert config.youtube.enabled is False
     assert config.image.provider == "development"
     assert config.image.openai.api_key_env == "OPENAI_API_KEY"
+    assert config.image.xai.api_key_env == "XAI_API_KEY"
+    assert config.image.xai.model == "grok-imagine-image-quality"
+    assert config.image.xai.aspect_ratio == "16:9"
+    assert config.image.xai.resolution == "2k"
     assert config.narration.elevenlabs.api_key_env == "ELEVENLABS_API_KEY"
     assert config.narration.elevenlabs.model_id == "eleven_multilingual_v2"
     assert config.narration.elevenlabs.speed == 0.7
