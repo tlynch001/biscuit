@@ -166,3 +166,33 @@ def test_example_config_loads(repo_root: Path) -> None:
     assert config.image.openai.api_key_env == "OPENAI_API_KEY"
     assert config.narration.elevenlabs.api_key_env == "ELEVENLABS_API_KEY"
     assert config.narration.elevenlabs.model_id == "eleven_multilingual_v2"
+    assert config.narration.elevenlabs.speed == 0.7
+    assert config.narration.words_per_minute == 170
+
+
+def test_elevenlabs_speed_and_wpm_are_independent(tmp_path: Path) -> None:
+    path = tmp_path / "config.yaml"
+    path.write_text(
+        "\n".join(
+            [
+                "narration:",
+                "  words_per_minute: 95",
+                "  elevenlabs:",
+                "    speed: 0.7",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    config = load_config(path)
+    assert config.narration.words_per_minute == 95
+    assert config.narration.elevenlabs.speed == 0.7
+
+
+def test_elevenlabs_speed_out_of_range_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "config.yaml"
+    path.write_text("narration:\n  elevenlabs:\n    speed: 0.5\n", encoding="utf-8")
+    with pytest.raises(ConfigurationError, match="speed"):
+        load_config(path)
+    path.write_text("narration:\n  elevenlabs:\n    speed: 1.5\n", encoding="utf-8")
+    with pytest.raises(ConfigurationError, match="speed"):
+        load_config(path)

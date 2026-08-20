@@ -39,13 +39,21 @@ narration:
   # "development" runs without paid APIs (espeak-ng if installed, otherwise
   # timed silence). "elevenlabs" requires ELEVENLABS_API_KEY.
   provider: development
+  # Development/espeak + synthetic timing fallback ONLY. This is not sent to
+  # ElevenLabs and does not change ElevenLabs speaking rate.
   words_per_minute: 170
   pause_between_scenes_seconds: 0.35
   elevenlabs:
     voice_id: "21m00Tcm4TlvDq8ikWAM"
+    # Keep eleven_multilingual_v2. Do not switch to v3 (no speed control).
     model_id: eleven_multilingual_v2
     stability: 0.5
     similarity_boost: 0.75
+    # Official with-timestamps voice_settings.speed: 1.0 = default,
+    # <1.0 slower, >1.0 faster. Documented TTS range is 0.7–1.2.
+    # Unitless multiplier — not words-per-minute. 0.7 is the slowest
+    # supported value (best match for a slow older-storyteller cadence).
+    speed: 0.7
     api_key_env: ELEVENLABS_API_KEY
 
 video:

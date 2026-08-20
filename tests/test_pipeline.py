@@ -231,6 +231,161 @@ def test_from_stage_assemble_reuses_assets(mini_story_path, test_config) -> None
     assert store.title_path.exists()
 
 
+def _install_fake_openai(monkeypatch, calls: dict):
+    from biscuit.providers.image_openai import OpenAIImageProvider
+    from PIL import Image
+
+    def fake_generate(self, request, output_path):
+        calls.setdefault("indexes", []).append(request.scene.index)
+        calls["n"] = calls.get("n", 0) + 1
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (request.width, request.height), (20, 30, 40)).save(output_path)
+        return output_path
+
+    monkeypatch.setattr(OpenAIImageProvider, "generate", fake_generate)
+
+
+def _openai_config(test_config, monkeypatch):
+    from biscuit.config import ImageConfig, OpenAIImageConfig
+
+    monkeypatch.setenv("TEST_OPENAI_KEY", "sk-test-not-real")
+    test_config.image = ImageConfig(
+        provider="openai",
+        width=test_config.image.width,
+        height=test_config.image.height,
+        openai=OpenAIImageConfig(api_key_env="TEST_OPENAI_KEY"),
+    )
+    return test_config
+
+
+def _write_image_stamp(store, index: int, *, digest: str, provider: str | None) -> None:
+    import json
+
+    path = store.work_dir / f"{index:03d}.image.hash"
+    if provider is None:
+        path.write_text(digest + "\n", encoding="utf-8")
+    else:
+        path.write_text(
+            json.dumps({"v": 1, "hash": digest, "provider": provider}, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+
+
+def test_pipeline_development_placeholders_are_replaced_by_openai(
+    mini_story_path, test_config, monkeypatch
+) -> None:
+    """development → openai must generate; placeholders are not treated as paid."""
+
+    pipeline = StoryPipeline(test_config)
+    store = ArtifactStore(test_config.output_dir, "mini_rescue")
+    pipeline.run(mini_story_path, store=store, through_stage="illustrate")
+    stamp = (store.work_dir / "001.image.hash").read_text(encoding="utf-8")
+    assert '"provider": "development"' in stamp or '"provider":"development"' in stamp
+
+    _openai_config(test_config, monkeypatch)
+    calls: dict = {}
+    _install_fake_openai(monkeypatch, calls)
+    StoryPipeline(test_config).run(
+        mini_story_path, store=store, from_stage="illustrate", through_stage="illustrate"
+    )
+    assert calls["indexes"] == [1, 2]
+
+
+def test_pipeline_legacy_development_hash_is_replaced_by_openai(
+    mini_story_path, test_config, monkeypatch
+) -> None:
+    pipeline = StoryPipeline(test_config)
+    store = ArtifactStore(test_config.output_dir, "mini_rescue")
+    pipeline.run(mini_story_path, store=store, through_stage="illustrate")
+    manifest = store.read_manifest()
+    characters = manifest.character_map()
+    for scene in manifest.scenes:
+        present = [characters[cid] for cid in scene.character_ids if cid in characters]
+        digest = pipeline._image_cache_hash(scene, present, provider="development")
+        _write_image_stamp(store, scene.index, digest=digest, provider=None)
+
+    _openai_config(test_config, monkeypatch)
+    calls: dict = {}
+    _install_fake_openai(monkeypatch, calls)
+    StoryPipeline(test_config).run(
+        mini_story_path, store=store, from_stage="illustrate", through_stage="illustrate"
+    )
+    assert calls["indexes"] == [1, 2]
+
+
+def test_pipeline_stale_openai_image_remains_protected(mini_story_path, test_config, monkeypatch) -> None:
+    _openai_config(test_config, monkeypatch)
+    calls: dict = {}
+    _install_fake_openai(monkeypatch, calls)
+    store = ArtifactStore(test_config.output_dir, "mini_rescue")
+    StoryPipeline(test_config).run(mini_story_path, store=store, through_stage="illustrate")
+    assert calls["n"] == 2
+
+    _write_image_stamp(store, 1, digest="stale-openai-fingerprint", provider="openai")
+    StoryPipeline(test_config).run(
+        mini_story_path, store=store, from_stage="illustrate", through_stage="illustrate"
+    )
+    assert calls["n"] == 2, "stale OpenAI PNG must be reused, not regenerated"
+
+
+def test_pipeline_missing_openai_image_generates(mini_story_path, test_config, monkeypatch) -> None:
+    _openai_config(test_config, monkeypatch)
+    calls: dict = {}
+    _install_fake_openai(monkeypatch, calls)
+    store = ArtifactStore(test_config.output_dir, "mini_rescue")
+    StoryPipeline(test_config).run(mini_story_path, store=store, through_stage="illustrate")
+    assert calls["indexes"] == [1, 2]
+
+    store.scene_image_path(2).unlink()
+    calls["indexes"] = []
+    StoryPipeline(test_config).run(
+        mini_story_path, store=store, from_stage="illustrate", through_stage="illustrate"
+    )
+    assert calls["indexes"] == [2]
+
+
+def test_pipeline_partial_paid_run_resumes_development_and_missing(
+    mini_story_path, test_config, monkeypatch
+) -> None:
+    pipeline = StoryPipeline(test_config)
+    store = ArtifactStore(test_config.output_dir, "mini_rescue")
+    pipeline.run(mini_story_path, store=store, through_stage="illustrate")
+
+    _openai_config(test_config, monkeypatch)
+    calls: dict = {}
+    _install_fake_openai(monkeypatch, calls)
+    openai_pipeline = StoryPipeline(test_config)
+    manifest = store.read_manifest()
+    scene1 = manifest.scenes[0]
+    present = [
+        manifest.character_map()[cid] for cid in scene1.character_ids if cid in manifest.character_map()
+    ]
+    openai_hash = openai_pipeline._image_cache_hash(scene1, present)
+    _write_image_stamp(store, 1, digest=openai_hash, provider="openai")
+
+    openai_pipeline.run(
+        mini_story_path, store=store, from_stage="illustrate", through_stage="illustrate"
+    )
+    assert calls["indexes"] == [2], "paid scene 1 stays; leftover development scene 2 generates"
+
+
+def test_pipeline_paid_to_paid_provider_switch_is_conservative(
+    mini_story_path, test_config, monkeypatch
+) -> None:
+    _openai_config(test_config, monkeypatch)
+    calls: dict = {}
+    _install_fake_openai(monkeypatch, calls)
+    store = ArtifactStore(test_config.output_dir, "mini_rescue")
+    StoryPipeline(test_config).run(mini_story_path, store=store, through_stage="illustrate")
+    assert calls["n"] == 2
+
+    _write_image_stamp(store, 1, digest="other-paid-fingerprint", provider="another_paid")
+    StoryPipeline(test_config).run(
+        mini_story_path, store=store, from_stage="illustrate", through_stage="illustrate"
+    )
+    assert calls["n"] == 2, "valid paid assets from another provider must not be replaced"
+
+
 def test_openai_illustrate_requires_env_var(mini_story_path, test_config, monkeypatch) -> None:
     from biscuit.config import ImageConfig, OpenAIImageConfig
     from biscuit.exceptions import ConfigurationError
