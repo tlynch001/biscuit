@@ -15,7 +15,12 @@ from biscuit.models import Character, CharacterReference, Scene, StoryManifest, 
 
 
 class StoryProvider(ABC):
-    """Expand a structured story concept into scenes."""
+    """Expand a structured story concept into scenes.
+
+    Production LLM implementations are not shipped yet. When they are,
+    they should follow ``stories/STORYTELLING.md``. Episode One is a
+    quality benchmark, not a plot to clone.
+    """
 
     name: str = "base"
 

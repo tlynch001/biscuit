@@ -212,6 +212,25 @@ def test_assemble_rebuilds_when_image_changes(mini_story_path, test_config, monk
     assert calls["n"] == 1
 
 
+def test_assemble_rebuilds_when_outro_config_changes(mini_story_path, test_config, monkeypatch) -> None:
+    pipeline = StoryPipeline(test_config)
+    store = ArtifactStore(test_config.output_dir, "mini_rescue")
+    pipeline.run(mini_story_path, store=store, through_stage="assemble")
+
+    calls = {"n": 0}
+
+    def fake_assemble(*_args, **_kwargs):
+        calls["n"] += 1
+
+    monkeypatch.setattr("biscuit.pipeline.assemble_video", fake_assemble)
+    pipeline.run(mini_story_path, store=store, from_stage="assemble", through_stage="assemble")
+    assert calls["n"] == 0
+
+    test_config.video.end_hold_seconds = 9.0
+    pipeline.run(mini_story_path, store=store, from_stage="assemble", through_stage="assemble")
+    assert calls["n"] == 1
+
+
 def test_dry_run_creates_no_video(mini_story_path, test_config) -> None:
     pipeline = StoryPipeline(test_config)
     store = ArtifactStore(test_config.output_dir, "mini_rescue")

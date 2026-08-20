@@ -3,6 +3,11 @@
 Phase 1 stories carry their own narration. A future LLM provider can take
 the same :class:`~biscuit.models.StorySpec` and invent scenes; this
 implementation exists so the rest of the pipeline is testable offline.
+
+Do not generate prose here. Writing quality for Biscuit stories is specified
+in ``stories/STORYTELLING.md``. Episode One (``biscuit_in_the_snow.yaml``) is
+the quality benchmark, not a plot or sentence template. A production story
+provider should load that guide rather than inventing a new voice.
 """
 
 from __future__ import annotations

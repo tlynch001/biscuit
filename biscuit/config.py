@@ -186,20 +186,39 @@ class VideoConfig:
     fade_seconds: float = 0.45
     default_motion: str = "slow_zoom_in"
     default_transition: str = "fade"
+    # After the final narrated word: hold the last still, fade it to black, then black.
+    end_hold_seconds: float = 4.0
+    end_fade_seconds: float = 2.0
+    end_black_seconds: float = 1.0
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any] | None) -> VideoConfig:
         data = data or {}
         defaults = cls()
+        end_hold = float(data.get("end_hold_seconds", defaults.end_hold_seconds))
+        end_fade = float(data.get("end_fade_seconds", defaults.end_fade_seconds))
+        end_black = float(data.get("end_black_seconds", defaults.end_black_seconds))
+        fade_seconds = float(data.get("fade_seconds", defaults.fade_seconds))
+        for name, value in (
+            ("video.fade_seconds", fade_seconds),
+            ("video.end_hold_seconds", end_hold),
+            ("video.end_fade_seconds", end_fade),
+            ("video.end_black_seconds", end_black),
+        ):
+            if value < 0:
+                raise ConfigurationError(f"{name} must be >= 0, got {value}.")
         return cls(
             assembler=str(data.get("assembler", defaults.assembler)),
             width=int(data.get("width", defaults.width)),
             height=int(data.get("height", defaults.height)),
             fps=int(data.get("fps", defaults.fps)),
             encoder_preset=str(data.get("encoder_preset", defaults.encoder_preset)),
-            fade_seconds=float(data.get("fade_seconds", defaults.fade_seconds)),
+            fade_seconds=fade_seconds,
             default_motion=str(data.get("default_motion", defaults.default_motion)),
             default_transition=str(data.get("default_transition", defaults.default_transition)),
+            end_hold_seconds=end_hold,
+            end_fade_seconds=end_fade,
+            end_black_seconds=end_black,
         )
 
 

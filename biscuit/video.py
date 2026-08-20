@@ -32,23 +32,63 @@ MOTION_FILTER_VERSION = "oversample-4x-v1"
 MOTION_OVERSAMPLE = 4
 MOTION_HEADROOM = 1.16
 
+# Bump when outro construction changes independently of the Ken Burns filter.
+OUTRO_VERSION = "hold-fade-black-v1"
+
+
+def last_scene_picture_seconds(narration_seconds: float, config: VideoConfig) -> float:
+    """Last-scene length including the post-narration hold and fade to black."""
+
+    base = max(narration_seconds, _MIN_SECONDS)
+    return base + max(config.end_hold_seconds, 0.0) + max(config.end_fade_seconds, 0.0)
+
+
+def outro_tail_seconds(config: VideoConfig) -> float:
+    """Seconds added after the final narrated word (hold + fade + black)."""
+
+    return (
+        max(config.end_hold_seconds, 0.0)
+        + max(config.end_fade_seconds, 0.0)
+        + max(config.end_black_seconds, 0.0)
+    )
+
 
 def assemble_video(manifest: StoryManifest, store: ArtifactStore, config: VideoConfig) -> Path:
     require_ffmpeg()
     store.ensure_dirs()
 
+    if not manifest.scenes:
+        raise VideoAssemblyError("No scene clips to assemble.")
+
+    last_index = manifest.scenes[-1].index
     clips: list[Path] = []
     for scene in manifest.scenes:
         image = store.root / scene.image_path if scene.image_path else store.scene_image_path(scene.index)
         if not image.exists():
             raise VideoAssemblyError(f"Missing scene image for {scene.id}: {image}")
-        duration = max(scene.duration_seconds or scene.target_duration_seconds or 2.0, _MIN_SECONDS)
+        narration_duration = max(scene.duration_seconds or scene.target_duration_seconds or 2.0, _MIN_SECONDS)
+        fade_out_seconds: float | None = None
+        duration = narration_duration
+        if scene.index == last_index:
+            duration = last_scene_picture_seconds(narration_duration, config)
+            if duration > narration_duration:
+                fade_out_seconds = max(config.end_fade_seconds, 0.0)
+                logger.info(
+                    "Final scene outro: %.1fs hold, %.1fs fade to black (clip %.1fs, narration %.1fs)",
+                    config.end_hold_seconds,
+                    config.end_fade_seconds,
+                    duration,
+                    narration_duration,
+                )
         clip_path = store.scene_clip_path(scene.index)
-        _render_clip(image, clip_path, scene, duration, config)
+        _render_clip(image, clip_path, scene, duration, config, fade_out_seconds=fade_out_seconds)
         clips.append(clip_path)
 
-    if not clips:
-        raise VideoAssemblyError("No scene clips to assemble.")
+    if config.end_black_seconds > 0:
+        black_path = store.work_dir / "outro_black.mp4"
+        _render_black(black_path, config.end_black_seconds, config)
+        clips.append(black_path)
+        logger.info("Appended %.1fs black after fade", config.end_black_seconds)
 
     silent = store.work_dir / "silent.mp4"
     _concat(clips, silent, config)
@@ -62,8 +102,16 @@ def assemble_video(manifest: StoryManifest, store: ArtifactStore, config: VideoC
     return output
 
 
-def _render_clip(image: Path, output: Path, scene: Scene, duration: float, config: VideoConfig) -> None:
-    vf = _motion_filter(scene.motion, duration, config)
+def _render_clip(
+    image: Path,
+    output: Path,
+    scene: Scene,
+    duration: float,
+    config: VideoConfig,
+    *,
+    fade_out_seconds: float | None = None,
+) -> None:
+    vf = _motion_filter(scene.motion, duration, config, fade_out_seconds=fade_out_seconds)
     run_ffmpeg(
         [
             "ffmpeg",
@@ -114,20 +162,34 @@ def oversampled_motion_sizes(width: int, height: int) -> tuple[int, int, int, in
     return scaled_w, scaled_h, crop_w, crop_h
 
 
-def _motion_filter(motion: str, duration: float, config: VideoConfig) -> str:
+def _motion_filter(
+    motion: str,
+    duration: float,
+    config: VideoConfig,
+    *,
+    fade_out_seconds: float | None = None,
+) -> str:
     """Restrained Ken Burns movement via oversampled crop, then downscale.
 
     Faster and more predictable than ffmpeg ``zoompan``, which is easy to
     misconfigure and expensive at 1080p. Frame index ``n`` (not timestamp
     ``t``) drives the path so 30 fps output is deterministic.
+
+    ``fade_out_seconds`` overrides the default scene fade-out. The last
+    scene uses ``video.end_fade_seconds`` so the picture can hold, then
+    fade to black, without changing the 4× oversampled motion math.
     """
 
     width, height = _even(config.width), _even(config.height)
     scaled_w, scaled_h, crop_w, crop_h = oversampled_motion_sizes(width, height)
     max_x = max(scaled_w - crop_w, 0)
     max_y = max(scaled_h - crop_h, 0)
-    fade = min(config.fade_seconds, max(duration / 5.0, 0.05))
-    fade_out_start = max(duration - fade, 0.0)
+    fade_in = min(config.fade_seconds, max(duration / 5.0, 0.05))
+    if fade_out_seconds is None:
+        fade_out = fade_in
+    else:
+        fade_out = min(max(fade_out_seconds, 0.0), duration)
+    fade_out_start = max(duration - fade_out, 0.0)
     frames = max(int(round(duration * config.fps)), 1)
     last = max(frames - 1, 1)
 
@@ -148,15 +210,17 @@ def _motion_filter(motion: str, duration: float, config: VideoConfig) -> str:
         x = f"max({max_x}*(1-n/{last})\\,0)"
         y = f"max({max_y}*(1-n/{last}*0.55)\\,0)"
 
-    return (
-        f"scale={scaled_w}:{scaled_h}:flags=lanczos,"
-        f"crop={crop_w}:{crop_h}:{x}:{y},"
-        f"scale={width}:{height}:flags=lanczos,"
-        f"setsar=1,"
-        f"fade=t=in:st=0:d={fade:.3f},"
-        f"fade=t=out:st={fade_out_start:.3f}:d={fade:.3f},"
-        f"fps={config.fps},format=yuv420p"
-    )
+    parts = [
+        f"scale={scaled_w}:{scaled_h}:flags=lanczos",
+        f"crop={crop_w}:{crop_h}:{x}:{y}",
+        f"scale={width}:{height}:flags=lanczos",
+        "setsar=1",
+        f"fade=t=in:st=0:d={fade_in:.3f}",
+    ]
+    if fade_out > 0:
+        parts.append(f"fade=t=out:st={fade_out_start:.3f}:d={fade_out:.3f}")
+    parts.append(f"fps={config.fps},format=yuv420p")
+    return ",".join(parts)
 
 
 def _concat(clips: list[Path], output: Path, config: VideoConfig) -> None:
@@ -187,7 +251,41 @@ def _concat(clips: list[Path], output: Path, config: VideoConfig) -> None:
     )
 
 
+def _render_black(output: Path, duration: float, config: VideoConfig) -> None:
+    width, height = _even(config.width), _even(config.height)
+    run_ffmpeg(
+        [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"color=c=black:s={width}x{height}:r={config.fps}",
+            "-t",
+            f"{duration:.3f}",
+            "-r",
+            str(config.fps),
+            "-an",
+            "-c:v",
+            "libx264",
+            "-preset",
+            config.encoder_preset,
+            "-pix_fmt",
+            "yuv420p",
+            str(output),
+        ]
+    )
+
+
 def _mux(silent_video: Path, narration: Path, output: Path, config: VideoConfig) -> None:
+    """Mux picture with narration, padding silence through the outro.
+
+    Narration is never time-stretched. ``apad`` fills hold / fade / black
+    so the audio stream lasts as long as the picture. When a background
+    music layer exists later, mix it in this graph so it can continue
+    after speech and fade during the visual outro.
+    """
+
     run_ffmpeg(
         [
             "ffmpeg",
@@ -198,6 +296,8 @@ def _mux(silent_video: Path, narration: Path, output: Path, config: VideoConfig)
             str(narration),
             "-c:v",
             "copy",
+            "-af",
+            "apad",
             "-c:a",
             "aac",
             "-b:a",
