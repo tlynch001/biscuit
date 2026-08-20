@@ -9,8 +9,8 @@ setting:
   time_of_day: winter darkness, gaslight and candlelight, the hour of eleven
   notes: >
     Oak hall, long-case clock, a flight of uncarpeted nursery stairs,
-    a door kept shut. Servants' passages. A schoolroom prepared for a pupil
-    who does not come. No readable lettering, clock numerals, book pages,
+    a door kept shut. Servants' passages. A schoolroom with two places laid,
+    one of them unused. No readable lettering, clock numerals, book pages,
     or signage. The ghost, if seen, is a small child in a white nightdress,
     not a monster, not transparent Hollywood effects, not wounded.
 visual_style:
@@ -46,7 +46,7 @@ characters:
     name: the Governess
     species: human
     role: newly arrived governess
-    summary: A young woman engaged to teach a child in the house, who finds the schoolroom set and the pupil absent.
+    summary: A young woman engaged to teach the boy of the house. She does not mention a second child.
     appearance:
       age_look: mid-twenties
       build: slight, upright
@@ -62,6 +62,27 @@ characters:
     visual_anchors:
       - same woman; dark wool dress, white collar, simply pinned hair, small lamp
       - she is new to the house; never in servant black
+  - id: boy
+    name: the Boy
+    species: human
+    role: living pupil of the house
+    summary: A boy of about eight who comes to the schoolroom and does his lesson. He does not mention a sister.
+    appearance:
+      age_look: about eight
+      build: slight, ordinary
+      clothing: dark school jacket, collar, knickerbockers
+      distinctive:
+        - dark hair cut short
+        - a slate he actually uses
+        - pale from the house, not from illness
+    personality:
+      - obedient
+      - not fanciful
+      - silent about what is missing
+    visual_anchors:
+      - same boy; dark school clothes, short dark hair, living color in the face
+      - never in a nightdress; never on the nursery landing
+      - distinct from the small girl in white
   - id: housekeeper
     name: the Housekeeper
     species: human
@@ -165,18 +186,20 @@ beats:
   - id: arrival
     title: A Schoolroom Set for Two
     emotion: wrongness
-    characters: [biscuit, governess, housekeeper]
+    characters: [biscuit, governess, housekeeper, boy]
     motion: slow_zoom_in
     visual: >
-      A schoolroom in cold daylight. Small chair. Slate. Fire newly laid.
-      The governess in a dark wool dress and white collar, still in her
-      traveling stiffness. Housekeeper by the door with keys. Biscuit on
-      the threshold, watching. No child in the room.
+      A schoolroom in cold daylight. Two chairs. Two slates. Fire newly laid.
+      A boy of about eight at the table in dark school clothes, working.
+      The second chair empty, the second slate unused. The governess in a
+      dark wool dress and white collar, still in her traveling stiffness.
+      Housekeeper by the door with keys. Biscuit on the threshold, watching.
     narration: >
       A governess came with a trunk and a lamp of her own. The schoolroom
-      was laid for a child. Chair. Slate. A fire. She waited with her
-      hands in her lap. No child came to the lesson. The housekeeper set
-      tea for two and did not mention the second cup.
+      was laid for a lesson. Two chairs. Two slates. A fire. The boy of
+      the house came and sat and did as he was told. The second chair
+      stayed empty. The housekeeper set the tea and did not mention the
+      unused place.
   - id: she_watches
     title: Eleven, Miss
     emotion: curiosity
@@ -232,8 +255,9 @@ beats:
       three steps down, as if the last tread were a different country.
       Grey light from a stair window.
     narration: >
-      In the schoolroom cupboard there were small shoes. The governess
-      went up in the afternoon and stood before the nursery door. Time had
+      In the schoolroom cupboard there were small shoes. Too small for
+      the boy. The governess went up in the afternoon and stood before
+      the nursery door. Time had
       seated the paint in the frame. Biscuit followed and stopped three
       steps down. He had never crossed that last tread. Not in her seeing.
   - id: the_room
