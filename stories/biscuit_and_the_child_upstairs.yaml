@@ -116,11 +116,10 @@ beats:
       bandana, on the hall rug. Stairs rising into unlit upper dark. Frost
       at a tall window.
     narration: >
-      The house kept winter in its corridors. Oak. Green paper browned by
-      lamp-smoke. Outside, the park was a pale field under frost. A shutter
-      knocked once and then had nothing more to say. Biscuit lay on the hall
-      rug until the kitchen light went down. His faded red bandana was the
-      only warm color the place admitted after supper.
+      The house was cold after supper. Oak. Green paper browned by lamp-smoke.
+      Outside, the park lay under frost. Biscuit lay on the hall rug until the
+      kitchen light went down. His faded red bandana was the only red in the
+      hall.
   - id: the_hour
     title: Nearly Eleven
     emotion: ritual
@@ -134,10 +133,9 @@ beats:
     narration: >
       The clock in the hall had a slow heart. Chairs ticked as they cooled.
       A servant crossed with a candlestick and did not look at the upper
-      flight. Upstairs a door stayed shut that stayed shut in the day as
-      well. Biscuit stood. He shook his coat. He went to the foot of the
-      nursery stairs as he did every night, at the same time, without being
-      called.
+      flight. Upstairs a door stayed shut. Biscuit stood. He shook his coat.
+      He went to the foot of the nursery stairs as he did every night, at
+      the same time, without being called.
   - id: the_wait
     title: The Foot of the Stairs
     emotion: attention
@@ -148,11 +146,9 @@ beats:
       Empty landing. A draught lifting nothing. Bandana. Candle-sconce
       with a dead wick. The top of the stairs only darkness.
     narration: >
-      He sat. The landing showed him nothing a man would have sworn to.
-      A draught moved along the stair-rod. Once a board spoke in the dark
-      above. He watched the top as other dogs watch a door where someone
-      still is. He did not bark. He did not come away until the hour had
-      gone past and the house had put the sound of the clock away.
+      He sat. The landing was empty. A draught moved along the stair-rod.
+      He watched the top as other dogs watch a door where someone still is.
+      He did not bark. He did not come away until the hour had gone past.
   - id: mice
     title: What the Kitchen Said
     emotion: dismissal
@@ -165,7 +161,7 @@ beats:
     narration: >
       In the morning the cook said mice. In the walls, she said. The
       housekeeper folded a cloth and did not add to it. Biscuit slept by
-      the range as if the night had been work enough.
+      the range.
   - id: arrival
     title: A Schoolroom Set for Two
     emotion: wrongness
@@ -178,10 +174,9 @@ beats:
       the threshold, watching. No child in the room.
     narration: >
       A governess came with a trunk and a lamp of her own. The schoolroom
-      was laid for a child. Chair. Slate. A fire that made the windows
-      weep. She waited with her hands in her lap. No child came to the
-      lesson. The housekeeper set tea for two and did not mention the
-      second cup.
+      was laid for a child. Chair. Slate. A fire. She waited with her
+      hands in her lap. No child came to the lesson. The housekeeper set
+      tea for two and did not mention the second cup.
   - id: she_watches
     title: Eleven, Miss
     emotion: curiosity
@@ -194,8 +189,8 @@ beats:
     narration: >
       That night she asked why the dog went to the stairs. Eleven, miss,
       said a maid, passing. He does. Every night. The governess stood in
-      the hall and watched him sit. The landing gave her back only the
-      bannister and her own lamp.
+      the hall and watched him sit. The landing showed only the bannister
+      and her own lamp.
   - id: the_landing
     title: A Breath at the Top
     emotion: dread
