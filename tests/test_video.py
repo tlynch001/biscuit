@@ -11,7 +11,10 @@ from biscuit.video import (
     MOTION_FILTER_VERSION,
     MOTION_HEADROOM,
     MOTION_OVERSAMPLE,
+    OUTRO_VERSION,
     _motion_filter,
+    last_scene_picture_seconds,
+    outro_tail_seconds,
     oversampled_motion_sizes,
 )
 
@@ -55,6 +58,32 @@ def test_motion_filter_diagonal_path_animates_both_axes() -> None:
     assert "*0.55" in vf
 
 
+def test_outro_timing_math_matches_configured_landing() -> None:
+    config = VideoConfig(end_hold_seconds=4.0, end_fade_seconds=2.0, end_black_seconds=1.0)
+    assert last_scene_picture_seconds(20.0, config) == 26.0
+    assert outro_tail_seconds(config) == 7.0
+    assert OUTRO_VERSION.startswith("hold-fade-black")
+
+
+def test_last_scene_fade_to_black_uses_end_fade_not_scene_fade() -> None:
+    config = VideoConfig(
+        width=640,
+        height=360,
+        fps=15,
+        fade_seconds=0.12,
+        end_hold_seconds=4.0,
+        end_fade_seconds=2.0,
+        end_black_seconds=1.0,
+    )
+    duration = last_scene_picture_seconds(5.0, config)
+    vf = _motion_filter("slow_zoom_in", duration, config, fade_out_seconds=config.end_fade_seconds)
+    scaled_w, scaled_h, crop_w, crop_h = oversampled_motion_sizes(640, 360)
+    assert f"scale={scaled_w}:{scaled_h}:flags=lanczos" in vf
+    assert f"crop={crop_w}:{crop_h}:" in vf
+    assert "fade=t=out:st=9.000:d=2.000" in vf
+    assert "n/" in vf
+
+
 @pytest.mark.skipif(shutil.which("ffprobe") is None, reason="ffprobe is required")
 def test_mini_pipeline_video_is_valid(mini_story_path, test_config) -> None:
     from biscuit.artifacts import ArtifactStore
@@ -65,7 +94,10 @@ def test_mini_pipeline_video_is_valid(mini_story_path, test_config) -> None:
     pipeline.run(mini_story_path, store=store)
     duration = media_duration_seconds(store.video_path)
     assert duration is not None
+    narration = media_duration_seconds(store.narration_path)
     assert duration > 0.4
+    assert narration is not None
+    assert duration >= narration + 6.5
 
 
 @pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is required")
@@ -119,9 +151,113 @@ def test_smooth_motion_clip_renders_1080p(tmp_path: Path) -> None:
         ],
     )
     store = ArtifactStore(tmp_path, "motion_check")
-    config = VideoConfig(width=1920, height=1080, fps=30, encoder_preset="ultrafast", fade_seconds=0.2)
+    config = VideoConfig(
+        width=1920,
+        height=1080,
+        fps=30,
+        encoder_preset="ultrafast",
+        fade_seconds=0.2,
+        end_hold_seconds=0.0,
+        end_fade_seconds=0.0,
+        end_black_seconds=0.0,
+    )
     output = assemble_video(manifest, store, config)
     assert output.exists()
     duration = media_duration_seconds(output)
     assert duration is not None
     assert 1.6 < duration < 2.4
+
+
+@pytest.mark.skipif(shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None, reason="ffmpeg is required")
+def test_outro_hold_fade_black_and_padded_audio(tmp_path: Path) -> None:
+    from PIL import Image, ImageDraw
+
+    from biscuit.artifacts import ArtifactStore
+    from biscuit.media import run_ffmpeg
+    from biscuit.models import (
+        Character,
+        NarrationGuidance,
+        Scene,
+        Setting,
+        StoryManifest,
+        VisualStyle,
+    )
+    from biscuit.video import assemble_video
+
+    store = ArtifactStore(tmp_path, "outro_check")
+    store.ensure_dirs()
+    image = store.scene_image_path(1)
+    canvas = Image.new("RGB", (640, 360), (20, 40, 80))
+    ImageDraw.Draw(canvas).rectangle((40, 40, 200, 160), fill=(220, 40, 40))
+    canvas.save(image)
+
+    run_ffmpeg(
+        [
+            "ffmpeg",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            "anullsrc=r=44100:cl=mono",
+            "-t",
+            "1.000",
+            "-c:a",
+            "libmp3lame",
+            "-q:a",
+            "9",
+            str(store.narration_path),
+        ]
+    )
+
+    manifest = StoryManifest(
+        version=1,
+        story_id="outro_check",
+        title="Outro",
+        tone="warm",
+        target_duration_seconds=1,
+        setting=Setting(location="courthouse"),
+        visual_style=VisualStyle(),
+        narration=NarrationGuidance(),
+        characters=[Character(id="biscuit", name="Biscuit", species="dog")],
+        scenes=[
+            Scene(
+                id="scene_001",
+                index=1,
+                beat_id="a",
+                title="Snow",
+                narration="Snow.",
+                visual_description="snow",
+                character_ids=["biscuit"],
+                emotion="calm",
+                image_path="scenes/001.png",
+                duration_seconds=1.0,
+                motion="slow_zoom_in",
+            )
+        ],
+    )
+    config = VideoConfig(
+        width=640,
+        height=360,
+        fps=15,
+        encoder_preset="ultrafast",
+        fade_seconds=0.1,
+        end_hold_seconds=4.0,
+        end_fade_seconds=2.0,
+        end_black_seconds=1.0,
+    )
+    output = assemble_video(manifest, store, config)
+    video_duration = media_duration_seconds(output)
+    audio_duration = media_duration_seconds(output)
+    narration = media_duration_seconds(store.narration_path)
+    last_clip = media_duration_seconds(store.scene_clip_path(1))
+    black = media_duration_seconds(store.work_dir / "outro_black.mp4")
+    assert video_duration is not None
+    assert 7.6 < video_duration < 8.5
+    assert audio_duration is not None
+    assert abs(audio_duration - video_duration) < 0.35
+    assert narration is not None
+    assert narration < 1.4
+    assert last_clip is not None
+    assert 6.6 < last_clip < 7.4
+    assert black is not None
+    assert 0.8 < black < 1.3

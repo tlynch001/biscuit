@@ -65,6 +65,11 @@ video:
   fade_seconds: 0.45
   default_motion: slow_zoom_in
   default_transition: fade
+  # After the last narrated word: hold the final still, fade to black, hold black.
+  # Ken Burns continues through the hold. Narration is not stretched; silence pads audio.
+  end_hold_seconds: 4.0
+  end_fade_seconds: 2.0
+  end_black_seconds: 1.0
 
 publishing:
   thumbnail_enabled: true

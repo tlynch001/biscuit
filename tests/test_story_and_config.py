@@ -96,6 +96,9 @@ def test_load_config_defaults_and_youtube_disabled(tmp_path: Path) -> None:
     assert config.image.openai.api_key_env == "OPENAI_API_KEY"
     assert config.image.width == 1920
     assert config.video.fps == 30
+    assert config.video.end_hold_seconds == 4.0
+    assert config.video.end_fade_seconds == 2.0
+    assert config.video.end_black_seconds == 1.0
 
 
 def test_load_config_missing_file(tmp_path: Path) -> None:
@@ -168,6 +171,25 @@ def test_example_config_loads(repo_root: Path) -> None:
     assert config.narration.elevenlabs.model_id == "eleven_multilingual_v2"
     assert config.narration.elevenlabs.speed == 0.7
     assert config.narration.words_per_minute == 170
+    assert config.video.end_hold_seconds == 4.0
+    assert config.video.end_fade_seconds == 2.0
+    assert config.video.end_black_seconds == 1.0
+
+
+def test_video_outro_negative_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "config.yaml"
+    path.write_text("video:\n  end_hold_seconds: -1\n", encoding="utf-8")
+    with pytest.raises(ConfigurationError, match="end_hold_seconds"):
+        load_config(path)
+
+
+def test_storytelling_guide_is_the_quality_spec(repo_root: Path) -> None:
+    text = (repo_root / "stories" / "STORYTELLING.md").read_text(encoding="utf-8")
+    assert "biscuit_in_the_snow.yaml" in text
+    assert "attentive listener" in text
+    assert "ordinary dog" in text
+    assert "Genre should change the world" in text
+    assert "not a template" in text.lower() or "not a plot" in text.lower()
 
 
 def test_elevenlabs_speed_and_wpm_are_independent(tmp_path: Path) -> None:

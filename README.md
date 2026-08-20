@@ -78,6 +78,11 @@ image paths travel with the character. Image providers receive opaque
 `CharacterReference` objects; vendor-specific `--cref` / image-to-image flags
 do not leak into the rest of the app.
 
+Writing quality for Biscuit stories lives in [`stories/STORYTELLING.md`](stories/STORYTELLING.md).
+Episode One (`stories/biscuit_in_the_snow.yaml`) is the quality benchmark, not
+a plot to clone. The current story provider is `template` (authored beats);
+there is no production LLM story writer yet.
+
 Narration timing drives scene length. ElevenLabs uses the `with-timestamps`
 endpoint (same generation, character alignment included). The development
 narrator synthesizes deterministic word timings and scales them to the real
@@ -268,7 +273,8 @@ python -m biscuit.cli \
   --through-stage narrate \
   --force
 
-# Rebuild video from existing images and narration
+# Rebuild video from existing images and narration (no paid APIs).
+# Includes the end hold / fade-to-black / black landing.
 python -m biscuit.cli \
   --config config/config.yaml \
   --story stories/biscuit_in_the_snow.yaml \
@@ -389,7 +395,7 @@ at `secrets/youtube_client_secret.json`, run once interactively to cache
 - Development image stills and opt-in OpenAI GPT Image (`gpt-image-2`)
 - Development/ElevenLabs narration (`eleven_multilingual_v2`)
 - Narration-driven scene timing
-- FFmpeg assembly with oversampled Ken Burns pan/zoom and fades
+- FFmpeg assembly with oversampled Ken Burns pan/zoom, fades, and a configurable end hold / fade-to-black
 - Thumbnail, title, description
 - Optional YouTube uploader behind `enabled: false`
 - Resumable stages, image hash cache, `--regenerate-image N`
@@ -397,7 +403,8 @@ at `secrets/youtube_client_secret.json`, run once interactively to cache
 
 **Intentionally deferred**
 
-- Live LLM story expansion (OpenAI/Grok/Claude)
+- Live LLM story expansion (OpenAI/Grok/Claude). Writing rules for that
+  future provider are in `stories/STORYTELLING.md`.
 - Additional image vendors (Flux, SD, others)
 - Guaranteed character identity without reference images
 - Background music / stems

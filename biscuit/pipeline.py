@@ -24,7 +24,7 @@ from biscuit.publishing import generate_description, generate_title, render_thum
 from biscuit.stages import STAGES, stage_index
 from biscuit.story import load_story
 from biscuit.timing import apply_timing_to_scenes
-from biscuit.video import MOTION_FILTER_VERSION, assemble_video
+from biscuit.video import MOTION_FILTER_VERSION, OUTRO_VERSION, assemble_video
 from biscuit.youtube import publish_video
 
 logger = logging.getLogger(__name__)
@@ -482,6 +482,10 @@ class StoryPipeline:
                 "fade_seconds": video.fade_seconds,
                 "default_motion": video.default_motion,
                 "motion_filter_version": MOTION_FILTER_VERSION,
+                "outro_version": OUTRO_VERSION,
+                "end_hold_seconds": video.end_hold_seconds,
+                "end_fade_seconds": video.end_fade_seconds,
+                "end_black_seconds": video.end_black_seconds,
                 "narration": sha256_file(store.narration_path) if store.narration_path.exists() else None,
                 "scenes": scenes_payload,
             }
