@@ -1,0 +1,308 @@
+id: biscuit_and_the_child_upstairs
+title: Biscuit and the Child Upstairs
+target_duration_seconds: 420
+tone: Victorian supernatural ghost story, restrained, melancholy, morally quiet
+setting:
+  location: old English country house, late 1890s, winter
+  weather: frost in the park, wind in the chimneys, no snowstorm spectacle
+  era: England, late 1890s
+  time_of_day: winter darkness, gaslight and candlelight, the hour of eleven
+  notes: >
+    Oak hall, long-case clock, a flight of uncarpeted nursery stairs,
+    a door kept shut. Servants' passages. A schoolroom prepared for a pupil
+    who does not come. No readable lettering, clock numerals, book pages,
+    or signage. The ghost, if seen, is a small child in a white nightdress,
+    not a monster, not transparent Hollywood effects, not wounded.
+visual_style:
+  medium: cinematic still photograph, painterly grain, period interior
+  lighting: gas jets, candle flame, winter window-blue, dying hearth
+  color: oak, bottle-green paper, soot, bone linen; the only warm red is Biscuit's faded bandana
+  camera: 16:9, architectural, still, corridors and landings, restrained
+  extra: eerie first, moving second; darkness and silence as atmosphere; implication over spectacle
+narration:
+  voice: controlled close-third narrator, period cadence without archaic pastiche
+  pov: close third person, Biscuit-centered
+  notes: >
+    Heard once. Plain supernatural events. Do not explain Biscuit.
+    Sparse speech. Leave questions unanswered.
+scene_constraints:
+  min_scenes: 8
+  max_scenes: 16
+  avoid:
+    - gore
+    - graphic injury
+    - on-screen violence
+    - jump scares
+    - demonic possession
+    - modern horror imagery
+    - political messaging
+    - comedy wink at the audience
+    - readable text or signage
+    - Biscuit speaking or thinking in human language
+    - Biscuit as a magical familiar
+characters:
+  - from: biscuit.yaml
+  - id: governess
+    name: the Governess
+    species: human
+    role: newly arrived governess
+    summary: A young woman engaged to teach a child in the house, who finds the schoolroom set and the pupil absent.
+    appearance:
+      age_look: mid-twenties
+      build: slight, upright
+      clothing: dark wool dress, plain white collar, winter cloak put away
+      distinctive:
+        - dark hair simply pinned
+        - a small brass-based lamp she carries
+        - ink on one finger
+    personality:
+      - observant
+      - not given to hysterics
+      - unwilling to be put off
+    visual_anchors:
+      - same woman; dark wool dress, white collar, simply pinned hair, small lamp
+      - she is new to the house; never in servant black
+  - id: housekeeper
+    name: the Housekeeper
+    species: human
+    role: keeper of keys and of what is not discussed
+    summary: An older servant who knows why the nursery is shut and does not offer the knowledge freely.
+    appearance:
+      age_look: about sixty
+      build: compact, straight-backed
+      clothing: black silk, white cap, chatelaine of keys
+      distinctive:
+        - lined mouth kept still
+        - steel-rimmed glasses
+    personality:
+      - correct
+      - protective of the house
+      - kinder than her silence
+    visual_anchors:
+      - same woman; black silk, white cap, keys, steel glasses
+      - she does not go up the nursery stairs in any frame
+  - id: child
+    name: the Child Upstairs
+    species: human
+    role: the child Biscuit waits for
+    summary: A small girl who is not living in the house in any ordinary sense.
+    appearance:
+      age_look: about five
+      build: slight
+      clothing: white nightdress, bare feet
+      distinctive:
+        - pale hair on her shoulders
+        - a face as ordinary as any child's
+        - cold around her like a held window
+    personality:
+      - waiting
+      - not cruel
+      - not a monster
+    visual_anchors:
+      - same small girl; white nightdress, pale hair, bare feet, no wounds
+      - never shown as a corpse, skeleton, or horror apparition
+      - if indistinct, she is like breath on glass, not a special-effect ghost
+beats:
+  - id: the_house
+    title: Winter in the Corridors
+    emotion: unease
+    characters: [biscuit]
+    motion: slow_zoom_in
+    transition: fade
+    visual: >
+      Wide cinematic still of an English country-house hall at winter night.
+      Oak, bottle-green paper, a long-case clock as a dark shape, no numerals
+      readable. Biscuit, a small cream-gold retriever mix with a faded red
+      bandana, on the hall rug. Stairs rising into unlit upper dark. Frost
+      at a tall window.
+    narration: >
+      The house kept winter in its corridors. Oak. Green paper browned by
+      lamp-smoke. Outside, the park was a pale field under frost. A shutter
+      knocked once and then had nothing more to say. Biscuit lay on the hall
+      rug until the kitchen light went down. His faded red bandana was the
+      only warm color the place admitted after supper.
+  - id: the_hour
+    title: Nearly Eleven
+    emotion: ritual
+    characters: [biscuit]
+    motion: pan_right
+    visual: >
+      The long-case clock in the hall, pendulum only, no readable face.
+      Biscuit standing, stretching, turning toward a narrower flight of
+      stairs with uncarpeted treads and brass rods. Gas jet low. Furniture
+      ticking as it cooled.
+    narration: >
+      The clock in the hall had a slow heart. Chairs ticked as they cooled.
+      A servant crossed with a candlestick and did not look at the upper
+      flight. Upstairs a door stayed shut that stayed shut in the day as
+      well. Biscuit stood. He shook his coat. He went to the foot of the
+      nursery stairs as he did every night, at the same time, without being
+      called.
+  - id: the_wait
+    title: The Foot of the Stairs
+    emotion: attention
+    characters: [biscuit]
+    motion: slow_zoom_in
+    visual: >
+      Biscuit sitting at the bottom of the nursery stairs, looking up.
+      Empty landing. A draught lifting nothing. Bandana. Candle-sconce
+      with a dead wick. The top of the stairs only darkness.
+    narration: >
+      He sat. The landing showed him nothing a man would have sworn to.
+      A draught moved along the stair-rod. Once a board spoke in the dark
+      above. He watched the top as other dogs watch a door where someone
+      still is. He did not bark. He did not come away until the hour had
+      gone past and the house had put the sound of the clock away.
+  - id: mice
+    title: What the Kitchen Said
+    emotion: dismissal
+    characters: [biscuit, housekeeper]
+    motion: pan_left
+    visual: >
+      Morning kitchen, range-glow. Housekeeper in black silk and keys,
+      speaking to someone out of frame. Biscuit asleep by the fender,
+      bandana dull in daylight. Copper pans. No readable labels.
+    narration: >
+      In the morning the cook said mice. In the walls, she said. The
+      housekeeper folded a cloth and did not add to it. Biscuit slept by
+      the range as if the night had been work enough.
+  - id: arrival
+    title: A Schoolroom Set for Two
+    emotion: wrongness
+    characters: [biscuit, governess, housekeeper]
+    motion: slow_zoom_in
+    visual: >
+      A schoolroom in cold daylight. Small chair. Slate. Fire newly laid.
+      The governess in a dark wool dress and white collar, still in her
+      traveling stiffness. Housekeeper by the door with keys. Biscuit on
+      the threshold, watching. No child in the room.
+    narration: >
+      A governess came with a trunk and a lamp of her own. The schoolroom
+      was laid for a child. Chair. Slate. A fire that made the windows
+      weep. She waited with her hands in her lap. No child came to the
+      lesson. The housekeeper set tea for two and did not mention the
+      second cup.
+  - id: she_watches
+    title: Eleven, Miss
+    emotion: curiosity
+    characters: [biscuit, governess]
+    motion: pan_right
+    visual: >
+      Night hall. Governess standing with her small lamp, dark dress,
+      watching Biscuit sit at the nursery stairs. Clock as a tall shadow.
+      Landing empty. Her face not frightened, only exact.
+    narration: >
+      That night she asked why the dog went to the stairs. Eleven, miss,
+      said a maid, passing. He does. Every night. The governess stood in
+      the hall and watched him sit. The landing gave her back only the
+      bannister and her own lamp.
+  - id: the_landing
+    title: A Breath at the Top
+    emotion: dread
+    characters: [biscuit, governess, child]
+    motion: slow_zoom_in
+    visual: >
+      View up the nursery stairs as the clock's last vibration leaves the
+      air. Biscuit's ears forward. At the top, a small girl in a white
+      nightdress, pale hair, bare feet, no wounds, as ordinary as a child
+      and as uncertain as frost. Or only the dark. Governess below with
+      the lamp shaking once.
+    narration: >
+      The next night the clock finished striking. Biscuit's ears came
+      forward. At the top, for as long as a breath, there was a child in
+      a white nightdress. Then there was the bannister. The governess
+      raised the lamp. She lowered it. Biscuit did not bark.
+  - id: the_keys
+    title: That Room Is Not Used
+    emotion: warning
+    characters: [biscuit, governess, housekeeper]
+    motion: pan_left
+    visual: >
+      The housekeeper on the lower stairs, black silk, keys at her waist,
+      blocking the flight without raising a hand. Governess two steps above
+      her, lamp down. Biscuit between them, looking up, not at the women.
+    narration: >
+      The housekeeper found her on the stairs. That room is not used, miss.
+      The little miss is not in the house. She has not been. Not for two
+      winters. The key hung on a nail by the service door and was not
+      offered.
+  - id: the_door
+    title: Paint in the Frame
+    emotion: resolve
+    characters: [biscuit, governess]
+    motion: slow_zoom_in
+    visual: >
+      Afternoon. Closed nursery door at the top, dark paint, no lettering,
+      a dull brass handle. Governess standing before it. Biscuit halted
+      three steps down, as if the last tread were a different country.
+      Grey light from a stair window.
+    narration: >
+      In the schoolroom cupboard there were small shoes. The governess
+      went up in the afternoon and stood before the nursery door. Time had
+      seated the paint in the frame. Biscuit followed and stopped three
+      steps down. He had never crossed that last tread. Not in her seeing.
+  - id: the_room
+    title: A Held Breath
+    emotion: melancholy
+    characters: [biscuit, governess]
+    motion: slow_zoom_in
+    visual: >
+      The nursery opened. Narrow bed. Frosted window, no writing on the
+      glass. A wooden horse on its side. Dust. Grey winter daylight.
+      Governess just inside with her lamp unlit. Biscuit on the threshold
+      only, bandana, not entering.
+    narration: >
+      She took the key without asking. The room held a narrow bed, a
+      window of frost, a wooden horse on its side. Dust on the washstand.
+      The cold was the cold of a place that had been closed on purpose.
+      Biscuit came as far as the threshold and no farther. He sat. He
+      looked at the bed. He did not lie down.
+  - id: the_open_hour
+    title: When the Clock Was Done
+    emotion: crossing
+    characters: [biscuit, governess, child]
+    motion: pan_right
+    visual: >
+      Night. Nursery door left ajar. Governess sitting on the stairs with
+      the lamp low. Biscuit going up at last, cream-gold coat, red bandana.
+      On the landing, the small girl in a white nightdress standing aside
+      as a living child would stand aside for a dog. Candle-sconce. No gore.
+    narration: >
+      That night she left the door as it was. Open. She sat on the stairs
+      with the lamp at her feet. Biscuit waited through the striking. Then
+      he went up, paw by paw. The governess saw, or believed she saw, a child
+      stand aside on the landing to let a dog pass. No one spoke.
+  - id: the_glass
+    title: The Window
+    emotion: release
+    characters: [biscuit, governess, child]
+    motion: slow_zoom_in
+    visual: >
+      Inside the nursery at night. Biscuit at the frosted window, nose to
+      the glass. A smear there like a small palm, fading. The bed empty.
+      Governess in the doorway with the lamp. The child not clearly in the
+      frame, or only the idea of pale hair at the edge of the dark. Quiet.
+    narration: >
+      He walked the rug. He stopped at the window. The frost was smeared,
+      as a small palm smears a glass. It faded while they watched. He lay
+      down across the doorway. The governess did not call him back. The
+      lamp smoked. The house was very quiet.
+  - id: ajar
+    title: Ajar
+    emotion: aftertaste
+    characters: [biscuit, governess]
+    motion: pan_right
+    visual: >
+      Later night, or another night. Biscuit asleep on the hearth rug in
+      the governess's small parlor, faded red bandana, fire nearly out.
+      Behind him the hall and the nursery stairs going up into darkness.
+      At the top, the door left ajar, a thin standing line of unlit room.
+      No child visible. The clock a tall unreadable shape. An image that
+      can be held.
+    narration: >
+      In the morning the nursery was a room. Dust. The horse. The bed
+      unslept. That night Biscuit came to the stairs at eleven and looked
+      up. He did not wait the hour. He went to the hearth in the
+      governess's parlor and slept, close enough to the ash to feel it.
+      Behind him the stairs rose into the dark, and the door at the top
+      stood as she had left it. Ajar.
