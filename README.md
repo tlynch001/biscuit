@@ -141,7 +141,7 @@ image:
   provider: development
 ```
 
-**Real image generation** (explicit opt-in; requires `OPENAI_API_KEY`):
+**OpenAI Images** (explicit opt-in; requires `OPENAI_API_KEY`):
 
 ```yaml
 image:
@@ -151,6 +151,32 @@ image:
     quality: medium
     api_key_env: OPENAI_API_KEY
 ```
+
+**xAI Grok Imagine** (explicit opt-in; requires `XAI_API_KEY`):
+
+```yaml
+image:
+  provider: xai
+  xai:
+    model: grok-imagine-image-quality
+    aspect_ratio: "16:9"
+    resolution: "2k"
+    api_key_env: XAI_API_KEY
+```
+
+A flatter form is also accepted and mapped onto `image.xai`:
+
+```yaml
+image:
+  provider: xai
+  model: grok-imagine-image-quality
+  aspect_ratio: "16:9"
+  resolution: "2k"
+```
+
+There is no automatic OpenAI → xAI fallback. Switch providers in YAML and
+restart the illustrate stage. Existing paid stills are reused unless you
+pass `--force` or `--regenerate-image N`.
 
 `gpt-image-2` accepts arbitrary resolutions that meet the official
 constraints (multiples of 16, max edge 3840px, aspect ≤ 3:1,
@@ -163,18 +189,19 @@ Image cache lives next to the PNGs (`work/NNN.image.hash`). Stamps are JSON
 with an explicit `provider` (legacy files are a bare hash). A matching
 fingerprint skips the API.
 
-If the prompt, size, provider, model, quality, or reference files change:
+If the prompt, size, provider, model, quality, xAI aspect/resolution, or
+reference files change:
 
 - **development** regenerates automatically (free)
-- **openai** *reuses* an existing **paid** PNG and warns, so a config flip
-  cannot quietly spend a full story. Pass `--regenerate-image N` or
-  `--force` to spend on purpose.
-- Switching **development → openai** replaces placeholder cards
-  automatically. No `--regenerate-image` is required; missing PNGs and
-  leftover development stills are generated, while successful paid stills
-  from a partial run are kept.
-- Switching from one paid provider to another is conservative: valid paid
-  assets are not silently replaced.
+- **openai** and **xai** *reuse* an existing **paid** PNG and warn, so a
+  config flip cannot quietly spend a full story. Pass `--regenerate-image N`
+  or `--force` to spend on purpose.
+- Switching **development → openai** or **development → xai** replaces
+  placeholder cards automatically. No `--regenerate-image` is required;
+  missing PNGs and leftover development stills are generated, while
+  successful paid stills from a partial run are kept.
+- Switching from one paid provider to another (including openai ↔ xai) is
+  conservative: valid paid assets are not silently replaced.
 
 The exact prompt sent to the API is `image_prompts/NNN.txt`. If the API
 returns a `revised_prompt`, that is stored as `image_prompts/NNN.revised.txt`.
@@ -186,12 +213,14 @@ Copy `.env.example` to `.env` (git-ignored):
 ```
 ELEVENLABS_API_KEY=
 OPENAI_API_KEY=
+XAI_API_KEY=
 ```
 
 | Variable | When it is needed |
 | --- | --- |
 | `ELEVENLABS_API_KEY` | `narration.provider: elevenlabs` |
 | `OPENAI_API_KEY` | `image.provider: openai` (also reserved for a future LLM story provider) |
+| `XAI_API_KEY` | `image.provider: xai` |
 
 YouTube does **not** use an env var. It uses OAuth files under `secrets/`
 (also git-ignored). Never commit `.env`, `config/config.yaml`, or anything in
@@ -212,6 +241,13 @@ Switch image generation later without touching the orchestrator:
 ```yaml
 image:
   provider: openai
+```
+
+or:
+
+```yaml
+image:
+  provider: xai
 ```
 
 Switch narration later without touching the orchestrator:
@@ -257,8 +293,8 @@ Useful flags:
 Examples:
 
 ```bash
-# Generate remaining OpenAI stills (replaces development placeholders / missing
-# PNGs; keeps successful paid images). Requires image.provider: openai.
+# Generate remaining paid stills (replaces development placeholders / missing
+# PNGs; keeps successful paid images). Requires image.provider: openai or xai.
 python -m biscuit.cli \
   --config config/config.yaml \
   --story stories/biscuit_in_the_snow.yaml \
@@ -290,8 +326,9 @@ python -m biscuit.cli \
   --regenerate-image 4
 ```
 
-First **paid** single-scene test (after `image.provider: openai` and `.env` has
-`OPENAI_API_KEY`). Do not run this unless you intend to spend a credit:
+First **paid** single-scene test (after `image.provider: openai` or
+`image.provider: xai`, with the matching key in `.env`). Do not run this
+unless you intend to spend a credit:
 
 ```bash
 python -m biscuit.cli \
@@ -300,6 +337,21 @@ python -m biscuit.cli \
   --from-stage illustrate \
   --through-stage illustrate \
   --regenerate-image 1
+```
+
+xAI smoke test for Episode Three (prompts reused; stills generated with
+Grok Imagine). Requires `XAI_API_KEY` in `.env` and `image.provider: xai`
+in `config/config.yaml`:
+
+```bash
+# .env
+XAI_API_KEY=...
+
+python -m biscuit.cli \
+  --config config/config.yaml \
+  --story stories/biscuit_and_the_child_upstairs.yaml \
+  --through-stage illustrate \
+  --verbose
 ```
 
 Stages: `parse`, `expand`, `prompts`, `narrate`, `illustrate`, `assemble`,
@@ -341,9 +393,11 @@ class TemplateStoryProvider(StoryProvider):
 ```
 
 A future OpenAI / Grok / Claude story expander or another TTS vendor
-registers the same way. The production image provider is **openai**
-(`gpt-image-2` via the Images API). The pipeline constructs providers from
-config and never imports a vendor SDK at the orchestration layer.
+registers the same way. Paid image providers are **openai** (`gpt-image-2`
+via the OpenAI Images API) and **xai** (`grok-imagine-image-quality` via
+`https://api.x.ai/v1/images/generations`). The pipeline constructs
+providers from config and never imports a vendor SDK at the orchestration
+layer.
 
 Image requests include:
 

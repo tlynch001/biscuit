@@ -30,6 +30,8 @@ def test_gitignore_and_env_example_keep_secrets_out(repo_root: Path) -> None:
 
     env_example = (repo_root / ".env.example").read_text(encoding="utf-8")
     assert "ELEVENLABS_API_KEY=" in env_example
+    assert "OPENAI_API_KEY=" in env_example
+    assert "XAI_API_KEY=" in env_example
     assert "ELEVENLABS_API_KEY=sk-" not in env_example
     for line in env_example.splitlines():
         if "=" in line and not line.strip().startswith("#"):
@@ -40,7 +42,9 @@ def test_gitignore_and_env_example_keep_secrets_out(repo_root: Path) -> None:
     assert "api_key:" not in example_config
     assert "ELEVENLABS_API_KEY" in example_config
     assert "OPENAI_API_KEY" in example_config
+    assert "XAI_API_KEY" in example_config
     assert "api_key_env: OPENAI_API_KEY" in example_config
+    assert "api_key_env: XAI_API_KEY" in example_config
     assert "provider: development" in example_config
     assert "youtube:" in example_config
     assert "enabled: false" in example_config

@@ -66,6 +66,8 @@ class StoryPipeline:
         image_kwargs: dict[str, object] = {}
         if config.image.provider == "openai":
             image_kwargs["openai"] = config.image.openai
+        elif config.image.provider == "xai":
+            image_kwargs["xai"] = config.image.xai
         self._image_provider = image_registry.create(config.image.provider, **image_kwargs)
         narration_kwargs: dict[str, object] = {}
         if config.narration.provider == "elevenlabs":
@@ -258,6 +260,8 @@ class StoryPipeline:
     ) -> StoryManifest:
         if self._config.image.provider == "openai":
             self._config.image.openai.resolve_api_key(required=True)
+        elif self._config.image.provider == "xai":
+            self._config.image.xai.resolve_api_key(required=True)
 
         known_indexes = {scene.index for scene in manifest.scenes}
         unknown = sorted({index for index in regenerate_images if index not in known_indexes})
@@ -271,10 +275,12 @@ class StoryPipeline:
         regenerate_set = set(regenerate_images)
         width, height = self._config.image.width, self._config.image.height
         current_provider = self._image_provider.name
+        model = self._image_model_name(current_provider)
         logger.info(
-            "Generating %d scene images via %s provider (%sx%s)",
+            "Generating %d scene images via %s provider%s (%sx%s)",
             len(manifest.scenes),
             current_provider,
+            f" / {model}" if model else "",
             width,
             height,
         )
@@ -418,6 +424,7 @@ class StoryPipeline:
         """
 
         openai = self._config.image.openai
+        xai = self._config.image.xai
         provider_name = provider or self._image_provider.name
         references: list[dict[str, object]] = []
         for character in present:
@@ -432,7 +439,7 @@ class StoryPipeline:
                 else:
                     entry["sha256"] = None
                 references.append(entry)
-        payload = {
+        payload: dict[str, object] = {
             "prompt": scene.image_prompt.strip(),
             "width": self._config.image.width,
             "height": self._config.image.height,
@@ -441,7 +448,18 @@ class StoryPipeline:
             "quality": openai.quality if provider_name == "openai" else None,
             "references": references,
         }
+        if provider_name == "xai":
+            payload["model"] = xai.model
+            payload["aspect_ratio"] = xai.aspect_ratio
+            payload["resolution"] = xai.resolution
         return sha256_json(payload)
+
+    def _image_model_name(self, provider_name: str) -> str | None:
+        if provider_name == "openai":
+            return self._config.image.openai.model
+        if provider_name == "xai":
+            return self._config.image.xai.model
+        return None
 
     def _run_assemble(self, manifest: StoryManifest, store: ArtifactStore, force: bool) -> None:
         fingerprint = self._assemble_fingerprint(manifest, store)

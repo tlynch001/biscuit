@@ -55,6 +55,7 @@ def load_builtin_providers() -> None:
     from biscuit.providers import (  # noqa: F401
         image_development,
         image_openai,
+        image_xai,
         narration_development,
         narration_elevenlabs,
         story_template,

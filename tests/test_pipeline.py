@@ -421,3 +421,107 @@ def test_openai_illustrate_requires_env_var(mini_story_path, test_config, monkey
     store = ArtifactStore(test_config.output_dir, "mini_rescue")
     with pytest.raises(ConfigurationError, match="TEST_OPENAI_KEY"):
         pipeline.run(mini_story_path, store=store, through_stage="illustrate")
+
+
+def _install_fake_xai(monkeypatch, calls: dict):
+    from biscuit.providers.image_xai import XAIImageProvider
+    from PIL import Image
+
+    def fake_generate(self, request, output_path):
+        calls.setdefault("indexes", []).append(request.scene.index)
+        calls["n"] = calls.get("n", 0) + 1
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (request.width, request.height), (20, 30, 40)).save(output_path)
+        return output_path
+
+    monkeypatch.setattr(XAIImageProvider, "generate", fake_generate)
+
+
+def _xai_config(test_config, monkeypatch):
+    from biscuit.config import ImageConfig, XAIImageConfig
+
+    monkeypatch.setenv("TEST_XAI_KEY", "xai-test-not-real")
+    test_config.image = ImageConfig(
+        provider="xai",
+        width=test_config.image.width,
+        height=test_config.image.height,
+        xai=XAIImageConfig(api_key_env="TEST_XAI_KEY"),
+    )
+    return test_config
+
+
+def test_xai_illustrate_requires_env_var(mini_story_path, test_config, monkeypatch) -> None:
+    from biscuit.config import ImageConfig, XAIImageConfig
+    from biscuit.exceptions import ConfigurationError
+
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    monkeypatch.delenv("TEST_XAI_KEY", raising=False)
+    test_config.image = ImageConfig(
+        provider="xai",
+        width=test_config.image.width,
+        height=test_config.image.height,
+        xai=XAIImageConfig(api_key_env="XAI_API_KEY"),
+    )
+    pipeline = StoryPipeline(test_config)
+    store = ArtifactStore(test_config.output_dir, "mini_rescue")
+    with pytest.raises(ConfigurationError, match="xAI image provider selected but XAI_API_KEY is not set"):
+        pipeline.run(mini_story_path, store=store, through_stage="illustrate")
+
+
+def test_pipeline_xai_stale_cache_does_not_spend(mini_story_path, test_config, monkeypatch) -> None:
+    _xai_config(test_config, monkeypatch)
+    calls: dict = {}
+    _install_fake_xai(monkeypatch, calls)
+    pipeline = StoryPipeline(test_config)
+    store = ArtifactStore(test_config.output_dir, "mini_rescue")
+    pipeline.run(mini_story_path, store=store, through_stage="illustrate")
+    assert calls["n"] == 2
+
+    pipeline.run(mini_story_path, store=store, from_stage="illustrate", through_stage="illustrate")
+    assert calls["n"] == 2
+
+    (store.work_dir / "001.image.hash").write_text("stale\n", encoding="utf-8")
+    pipeline.run(mini_story_path, store=store, from_stage="illustrate", through_stage="illustrate")
+    assert calls["n"] == 2, "stale paid xAI cache must reuse, not regenerate"
+
+    pipeline.run(
+        mini_story_path,
+        store=store,
+        from_stage="illustrate",
+        through_stage="illustrate",
+        regenerate_images=[1],
+    )
+    assert calls["n"] == 3
+
+
+def test_pipeline_openai_to_xai_switch_is_conservative(mini_story_path, test_config, monkeypatch) -> None:
+    _openai_config(test_config, monkeypatch)
+    openai_calls: dict = {}
+    _install_fake_openai(monkeypatch, openai_calls)
+    store = ArtifactStore(test_config.output_dir, "mini_rescue")
+    StoryPipeline(test_config).run(mini_story_path, store=store, through_stage="illustrate")
+    assert openai_calls["n"] == 2
+
+    _xai_config(test_config, monkeypatch)
+    xai_calls: dict = {}
+    _install_fake_xai(monkeypatch, xai_calls)
+    StoryPipeline(test_config).run(
+        mini_story_path, store=store, from_stage="illustrate", through_stage="illustrate"
+    )
+    assert xai_calls.get("n", 0) == 0, "valid OpenAI stills must not be replaced by xAI without --force"
+
+
+def test_pipeline_development_placeholders_are_replaced_by_xai(
+    mini_story_path, test_config, monkeypatch
+) -> None:
+    pipeline = StoryPipeline(test_config)
+    store = ArtifactStore(test_config.output_dir, "mini_rescue")
+    pipeline.run(mini_story_path, store=store, through_stage="illustrate")
+
+    _xai_config(test_config, monkeypatch)
+    calls: dict = {}
+    _install_fake_xai(monkeypatch, calls)
+    StoryPipeline(test_config).run(
+        mini_story_path, store=store, from_stage="illustrate", through_stage="illustrate"
+    )
+    assert calls["indexes"] == [1, 2]

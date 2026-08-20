@@ -19,11 +19,15 @@ story_provider:
 
 image:
   # "development" draws cinematic placeholder stills (no API, no cost).
-  # "openai" calls the OpenAI Images API (gpt-image-2). Requires OPENAI_API_KEY
-  # and spends credits. Never the default — set this explicitly to opt in.
+  # "openai" calls the OpenAI Images API (gpt-image-2). Requires OPENAI_API_KEY.
+  # "xai" calls Grok Imagine at https://api.x.ai/v1. Requires XAI_API_KEY.
+  # Paid providers are never the default — set provider explicitly to opt in.
+  # There is no automatic OpenAI → xAI fallback.
   # gpt-image-2 requests 1920x1088 (closest valid multiple-of-16 size) and
   # cover-crops locally to this 1920x1080 canvas. Older GPT Image models
   # still use the fixed enum (1536x1024 landscape).
+  # xAI uses aspect_ratio + resolution instead of a pixel size; Biscuit
+  # cover-crops the returned image to this canvas.
   provider: development
   width: 1920
   height: 1080
@@ -32,6 +36,13 @@ image:
     # low | medium | high | auto — medium is the cost-conscious default.
     quality: medium
     api_key_env: OPENAI_API_KEY
+    timeout_seconds: 180
+    max_retries: 2
+  xai:
+    model: grok-imagine-image-quality
+    aspect_ratio: "16:9"
+    resolution: "2k"
+    api_key_env: XAI_API_KEY
     timeout_seconds: 180
     max_retries: 2
 
