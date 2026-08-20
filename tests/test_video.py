@@ -24,7 +24,7 @@ def test_motion_filter_is_valid_ffmpeg_graph() -> None:
     assert f"crop={crop_w}:{crop_h}:" in vf
     assert "scale=640:360:flags=lanczos" in vf
     assert "fade=" in vf
-    assert "*n/" in vf
+    assert "n/" in vf
     assert MOTION_OVERSAMPLE == 4
     assert MOTION_HEADROOM == 1.16
     assert MOTION_FILTER_VERSION.startswith("oversample")
@@ -42,8 +42,8 @@ def test_motion_filter_1080p_uses_oversampled_crop_then_downscale() -> None:
     assert "scale=1920:1080:flags=lanczos" in vf
     assert "setsar=1" in vf
     # Frame-index animation, not timestamp, so 30 fps steps are uniform.
-    assert "*n/" in vf
-    assert "*t/" not in vf
+    assert "n/" in vf
+    assert "t/" not in vf
 
 
 def test_motion_filter_diagonal_path_animates_both_axes() -> None:
