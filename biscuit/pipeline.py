@@ -7,6 +7,7 @@ artifacts so later stages can resume without rerunning paid work.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 from pathlib import Path
@@ -23,10 +24,38 @@ from biscuit.publishing import generate_description, generate_title, render_thum
 from biscuit.stages import STAGES, stage_index
 from biscuit.story import load_story
 from biscuit.timing import apply_timing_to_scenes
-from biscuit.video import assemble_video
+from biscuit.video import MOTION_FILTER_VERSION, assemble_video
 from biscuit.youtube import publish_video
 
 logger = logging.getLogger(__name__)
+
+_FREE_IMAGE_PROVIDERS = frozenset({"development"})
+
+
+def _image_provider_is_paid(name: str | None) -> bool:
+    return bool(name) and name not in _FREE_IMAGE_PROVIDERS
+
+
+def _parse_image_stamp(path: Path) -> dict[str, str | None]:
+    """Read a scene image stamp. Supports JSON provenance and legacy bare hashes."""
+
+    if not path.exists():
+        return {"hash": None, "provider": None}
+    text = path.read_text(encoding="utf-8").strip()
+    if not text:
+        return {"hash": None, "provider": None}
+    if text.startswith("{"):
+        try:
+            data = json.loads(text)
+            if isinstance(data, dict) and data.get("hash"):
+                provider = data.get("provider")
+                return {
+                    "hash": str(data["hash"]).strip(),
+                    "provider": str(provider) if provider else None,
+                }
+        except json.JSONDecodeError:
+            pass
+    return {"hash": text, "provider": None}
 
 
 class StoryPipeline:
@@ -166,6 +195,16 @@ class StoryPipeline:
                 "script": script,
                 "provider": self._narration_provider.name,
                 "wpm": self._config.narration.words_per_minute,
+                "elevenlabs_speed": (
+                    self._config.narration.elevenlabs.speed
+                    if self._narration_provider.name == "elevenlabs"
+                    else None
+                ),
+                "elevenlabs_model": (
+                    self._config.narration.elevenlabs.model_id
+                    if self._narration_provider.name == "elevenlabs"
+                    else None
+                ),
             }
         )
         state = store.read_run_state()
@@ -230,12 +269,12 @@ class StoryPipeline:
 
         characters = manifest.character_map()
         regenerate_set = set(regenerate_images)
-        paid = self._image_provider.name != "development"
         width, height = self._config.image.width, self._config.image.height
+        current_provider = self._image_provider.name
         logger.info(
             "Generating %d scene images via %s provider (%sx%s)",
             len(manifest.scenes),
-            self._image_provider.name,
+            current_provider,
             width,
             height,
         )
@@ -253,29 +292,49 @@ class StoryPipeline:
             cache_key = self._image_cache_hash(scene, present)
             stamp_path = store.work_dir / f"{scene.index:03d}.image.hash"
             force_this = force or scene.index in regenerate_set
-            stamp_matches = (
-                stamp_path.exists() and stamp_path.read_text(encoding="utf-8").strip() == cache_key
-            )
+            stamp = _parse_image_stamp(stamp_path)
+            recorded_provider = self._resolve_stamp_provider(stamp, scene, present)
+            hash_matches = stamp["hash"] == cache_key if stamp["hash"] else False
 
-            if output.exists() and stamp_matches and not force_this:
+            if output.exists() and hash_matches and not force_this:
                 logger.info(
                     "image cache hit scene=%s id=%s provider=%s size=%sx%s reused=true",
                     scene.index,
                     scene.id,
-                    self._image_provider.name,
+                    current_provider,
                     width,
                     height,
                 )
-            elif output.exists() and not stamp_matches and not force_this and paid:
+            elif (
+                output.exists()
+                and not force_this
+                and _image_provider_is_paid(current_provider)
+                and recorded_provider not in _FREE_IMAGE_PROVIDERS
+            ):
                 logger.warning(
-                    "image cache stale scene=%s id=%s provider=%s — reusing existing PNG to avoid "
-                    "accidental API spend. Pass --regenerate-image %s (or --force) to regenerate.",
+                    "image cache stale scene=%s id=%s provider=%s recorded_provider=%s — reusing "
+                    "existing paid PNG to avoid accidental API spend. Pass --regenerate-image %s "
+                    "(or --force) to regenerate.",
                     scene.index,
                     scene.id,
-                    self._image_provider.name,
+                    current_provider,
+                    recorded_provider or "unknown",
                     scene.index,
                 )
             else:
+                if (
+                    output.exists()
+                    and not force_this
+                    and _image_provider_is_paid(current_provider)
+                    and not _image_provider_is_paid(recorded_provider)
+                ):
+                    logger.info(
+                        "image cache replacing development placeholder scene=%s id=%s "
+                        "with provider=%s",
+                        scene.index,
+                        scene.id,
+                        current_provider,
+                    )
                 references = [ref for character in present for ref in character.references]
                 started = time.monotonic()
                 try:
@@ -298,26 +357,59 @@ class StoryPipeline:
                     ) from exc
                 if not output.exists():
                     raise ImageGenerationError(
-                        f"Image provider {self._image_provider.name} did not create {output} "
+                        f"Image provider {current_provider} did not create {output} "
                         f"for {scene.id} (scene {scene.index:03d})"
                     )
-                stamp_path.write_text(cache_key + "\n", encoding="utf-8")
+                stamp_path.write_text(
+                    json.dumps({"v": 1, "hash": cache_key, "provider": current_provider}, sort_keys=True)
+                    + "\n",
+                    encoding="utf-8",
+                )
                 logger.info(
                     "image generated scene=%s id=%s provider=%s size=%sx%s reused=false elapsed=%.1fs",
                     scene.index,
                     scene.id,
-                    self._image_provider.name,
+                    current_provider,
                     width,
                     height,
                     time.monotonic() - started,
                 )
             scene.image_path = store.relative(output)
             scene.image_prompt_path = store.relative(prompt_path)
-        manifest.image_provider = self._image_provider.name
+        manifest.image_provider = current_provider
         store.write_manifest(manifest)
         return manifest
 
-    def _image_cache_hash(self, scene: Scene, present: list[Character]) -> str:
+    def _resolve_stamp_provider(
+        self,
+        stamp: dict[str, str | None],
+        scene: Scene,
+        present: list[Character],
+    ) -> str | None:
+        """Return the provider that produced the on-disk PNG, if it can be known.
+
+        New stamps store ``provider`` explicitly. Legacy stamps are a bare hash:
+        if that hash matches a development fingerprint, treat the PNG as a
+        placeholder; otherwise treat provenance as unknown (paid-safe).
+        """
+
+        recorded = stamp.get("provider")
+        if recorded:
+            return recorded
+        if not stamp.get("hash"):
+            return None
+        development_hash = self._image_cache_hash(scene, present, provider="development")
+        if stamp["hash"] == development_hash:
+            return "development"
+        return None
+
+    def _image_cache_hash(
+        self,
+        scene: Scene,
+        present: list[Character],
+        *,
+        provider: str | None = None,
+    ) -> str:
         """Fingerprint of everything that should invalidate a generated still.
 
         Paid providers treat a mismatch as *stale* (reuse + warn) unless the
@@ -326,6 +418,7 @@ class StoryPipeline:
         """
 
         openai = self._config.image.openai
+        provider_name = provider or self._image_provider.name
         references: list[dict[str, object]] = []
         for character in present:
             for ref in character.references:
@@ -343,9 +436,9 @@ class StoryPipeline:
             "prompt": scene.image_prompt.strip(),
             "width": self._config.image.width,
             "height": self._config.image.height,
-            "provider": self._image_provider.name,
-            "model": openai.model if self._image_provider.name == "openai" else None,
-            "quality": openai.quality if self._image_provider.name == "openai" else None,
+            "provider": provider_name,
+            "model": openai.model if provider_name == "openai" else None,
+            "quality": openai.quality if provider_name == "openai" else None,
             "references": references,
         }
         return sha256_json(payload)
@@ -388,6 +481,7 @@ class StoryPipeline:
                 "encoder_preset": video.encoder_preset,
                 "fade_seconds": video.fade_seconds,
                 "default_motion": video.default_motion,
+                "motion_filter_version": MOTION_FILTER_VERSION,
                 "narration": sha256_file(store.narration_path) if store.narration_path.exists() else None,
                 "scenes": scenes_payload,
             }

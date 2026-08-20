@@ -3,6 +3,12 @@
 Scene durations come from narration timing. Images get a slow zoom or pan
 (Ken Burns-style) plus a short fade. This is intentionally a small,
 configurable assembler — not a general effects engine.
+
+Crop x/y in FFmpeg are integer pixels. Animating a 1920×1080 crop on a
+~1.16× canvas moves well under one output pixel per frame, which quantizes
+into a visible staircase (left, then down, then left…). Motion is therefore
+evaluated in an oversampled coordinate space and lanczos-downscaled to the
+output size so 30 fps pans stay diagonal and smooth.
 """
 
 from __future__ import annotations
@@ -20,6 +26,11 @@ from biscuit.models import Scene, StoryManifest
 logger = logging.getLogger(__name__)
 
 _MIN_SECONDS = 0.2
+
+# Bump when the filter graph strategy changes so assemble cache invalidates.
+MOTION_FILTER_VERSION = "oversample-4x-v1"
+MOTION_OVERSAMPLE = 4
+MOTION_HEADROOM = 1.16
 
 
 def assemble_video(manifest: StoryManifest, store: ArtifactStore, config: VideoConfig) -> Path:
@@ -85,41 +96,63 @@ def _even(value: int) -> int:
     return value if value % 2 == 0 else value + 1
 
 
+def oversampled_motion_sizes(width: int, height: int) -> tuple[int, int, int, int]:
+    """Return ``(scaled_w, scaled_h, crop_w, crop_h)`` in oversampled pixels.
+
+    The source is scaled to a larger canvas (oversample × headroom), a crop
+    window the size of ``oversample × output`` travels across it, then the
+    crop is lanczos-downscaled to ``width×height``. Travel distance in
+    *output* pixels is unchanged from the old 1.16× crop; only the
+    coordinate resolution increases.
+    """
+
+    width, height = _even(width), _even(height)
+    crop_w = _even(width * MOTION_OVERSAMPLE)
+    crop_h = _even(height * MOTION_OVERSAMPLE)
+    scaled_w = _even(int(round(crop_w * MOTION_HEADROOM)))
+    scaled_h = _even(int(round(crop_h * MOTION_HEADROOM)))
+    return scaled_w, scaled_h, crop_w, crop_h
+
+
 def _motion_filter(motion: str, duration: float, config: VideoConfig) -> str:
-    """Restrained Ken Burns movement via crop-on-oversized-scale.
+    """Restrained Ken Burns movement via oversampled crop, then downscale.
 
     Faster and more predictable than ffmpeg ``zoompan``, which is easy to
-    misconfigure and expensive at 1080p.
+    misconfigure and expensive at 1080p. Frame index ``n`` (not timestamp
+    ``t``) drives the path so 30 fps output is deterministic.
     """
 
     width, height = _even(config.width), _even(config.height)
-    scaled_w, scaled_h = _even(int(width * 1.16)), _even(int(height * 1.16))
-    max_x = max(scaled_w - width, 0)
-    max_y = max(scaled_h - height, 0)
+    scaled_w, scaled_h, crop_w, crop_h = oversampled_motion_sizes(width, height)
+    max_x = max(scaled_w - crop_w, 0)
+    max_y = max(scaled_h - crop_h, 0)
     fade = min(config.fade_seconds, max(duration / 5.0, 0.05))
     fade_out_start = max(duration - fade, 0.0)
-    t = max(duration, 0.001)
+    frames = max(int(round(duration * config.fps)), 1)
+    last = max(frames - 1, 1)
 
     if motion == "pan_right":
-        x = f"min({max_x}*t/{t:.3f}\\,{max_x})"
+        x = f"min({max_x}*n/{last}\\,{max_x})"
         y = str(max_y // 2)
     elif motion == "pan_left":
-        x = f"max({max_x}*(1-t/{t:.3f})\\,0)"
+        x = f"max({max_x}*(1-n/{last})\\,0)"
         y = str(max_y // 2)
     elif motion == "slow_zoom_out":
-        x = f"min({max_x}*t/{t:.3f}\\,{max_x})"
-        y = f"min({max_y}*t/{t:.3f}\\,{max_y})"
+        x = f"min({max_x}*n/{last}\\,{max_x})"
+        y = f"min({max_y}*n/{last}\\,{max_y})"
     elif motion in {"none", "static"}:
         x = str(max_x // 2)
         y = str(max_y // 2)
     else:
         # slow_zoom_in: drift toward the upper-right of the oversized frame
-        x = f"max({max_x}*(1-t/{t:.3f})\\,0)"
-        y = f"max({max_y}*(1-t/{t:.3f}*0.55)\\,0)"
+        x = f"max({max_x}*(1-n/{last})\\,0)"
+        y = f"max({max_y}*(1-n/{last}*0.55)\\,0)"
 
     return (
-        f"scale={scaled_w}:{scaled_h},"
-        f"crop={width}:{height}:{x}:{y},"
+        f"scale={scaled_w}:{scaled_h}:flags=lanczos,"
+        f"crop={crop_w}:{crop_h}:{x}:{y},"
+        f"scale={width}:{height}:flags=lanczos,"
+        f"setsar=1,"
         f"fade=t=in:st=0:d={fade:.3f},"
         f"fade=t=out:st={fade_out_start:.3f}:d={fade:.3f},"
         f"fps={config.fps},format=yuv420p"

@@ -163,11 +163,12 @@ def test_elevenlabs_provider_writes_audio_and_timing(tmp_path: Path, monkeypatch
     def fake_post(url, **kwargs):
         called["url"] = url
         called["headers"] = kwargs.get("headers")
+        called["payload"] = kwargs.get("json")
         return _FakeResponse(fake_audio, alignment)
 
     monkeypatch.setattr("requests.post", fake_post)
     provider = ElevenLabsNarrationProvider(
-        elevenlabs=ElevenLabsConfig(api_key_env="TEST_ELEVENLABS_KEY")
+        elevenlabs=ElevenLabsConfig(api_key_env="TEST_ELEVENLABS_KEY", speed=0.7)
     )
     output = tmp_path / "narration.mp3"
     result = provider.synthesize(
@@ -179,3 +180,57 @@ def test_elevenlabs_provider_writes_audio_and_timing(tmp_path: Path, monkeypatch
     assert result.timing.scenes[0].scene_id == "scene_001"
     assert "with-timestamps" in called["url"]
     assert called["headers"]["xi-api-key"] == "not-a-real-key"
+    assert called["payload"]["model_id"] == "eleven_multilingual_v2"
+    assert called["payload"]["voice_settings"]["speed"] == 0.7
+    assert "words_per_minute" not in called["payload"]
+
+
+def test_elevenlabs_default_speed_is_serialized(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("TEST_ELEVENLABS_KEY", "not-a-real-key")
+    scenes = [
+        Scene(
+            id="scene_001",
+            index=1,
+            beat_id="a",
+            title="A",
+            narration="Hello there.",
+            visual_description="",
+            character_ids=[],
+            emotion="",
+        )
+    ]
+    captured: dict = {}
+
+    def fake_post(url, **kwargs):
+        captured["payload"] = kwargs.get("json")
+        return _FakeResponse(b"ID3x", None)
+
+    monkeypatch.setattr("requests.post", fake_post)
+    ElevenLabsNarrationProvider(
+        elevenlabs=ElevenLabsConfig(api_key_env="TEST_ELEVENLABS_KEY")
+    ).synthesize(
+        NarrationRequest(script_text="Hello there.", scenes=scenes, words_per_minute=170),
+        tmp_path / "narration.mp3",
+    )
+    assert captured["payload"]["voice_settings"]["speed"] == 1.0
+
+
+def test_development_wpm_is_independent_of_elevenlabs_speed(
+    mini_story_path, test_config, monkeypatch
+) -> None:
+    from biscuit.pipeline import StoryPipeline
+    from biscuit.providers.narration_development import DevelopmentNarrationProvider
+
+    test_config.narration.words_per_minute = 95
+    test_config.narration.elevenlabs.speed = 0.7
+    captured: dict = {}
+    original = DevelopmentNarrationProvider.synthesize
+
+    def wrapped(self, request, output_path):
+        captured["wpm"] = request.words_per_minute
+        return original(self, request, output_path)
+
+    monkeypatch.setattr(DevelopmentNarrationProvider, "synthesize", wrapped)
+    store = ArtifactStore(test_config.output_dir, "mini_rescue")
+    StoryPipeline(test_config).run(mini_story_path, store=store, through_stage="narrate")
+    assert captured["wpm"] == 95

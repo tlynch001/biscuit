@@ -45,6 +45,9 @@ class ElevenLabsNarrationProvider(NarrationProvider):
             "voice_settings": {
                 "stability": self._config.stability,
                 "similarity_boost": self._config.similarity_boost,
+                # Official with-timestamps field: 1.0 default, <1 slower, >1 faster.
+                # Independent of narration.words_per_minute (development/fallback only).
+                "speed": self._config.speed,
             },
         }
         headers = {"xi-api-key": api_key, "Content-Type": "application/json"}

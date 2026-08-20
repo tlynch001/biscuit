@@ -113,23 +113,39 @@ class ImageConfig:
         )
 
 
+# Official ElevenLabs TTS docs (eleven_multilingual_v2, with-timestamps):
+# voice_settings.speed default 1.0; values < 1.0 slow speech, > 1.0 speed it up.
+# Documented product/API range is 0.7–1.2. This is a unitless multiplier, not WPM.
+_ELEVENLABS_SPEED_MIN = 0.7
+_ELEVENLABS_SPEED_MAX = 1.2
+
+
 @dataclass
 class ElevenLabsConfig:
     voice_id: str = "21m00Tcm4TlvDq8ikWAM"
     model_id: str = "eleven_multilingual_v2"
     stability: float = 0.5
     similarity_boost: float = 0.75
+    speed: float = 1.0
     api_key_env: str = "ELEVENLABS_API_KEY"
 
     @classmethod
     def from_mapping(cls, data: dict[str, Any] | None) -> ElevenLabsConfig:
         data = data or {}
         defaults = cls()
+        speed = float(data.get("speed", defaults.speed))
+        if speed < _ELEVENLABS_SPEED_MIN or speed > _ELEVENLABS_SPEED_MAX:
+            raise ConfigurationError(
+                "narration.elevenlabs.speed must be between "
+                f"{_ELEVENLABS_SPEED_MIN} and {_ELEVENLABS_SPEED_MAX} "
+                f"(ElevenLabs TTS multiplier; default 1.0). Got {speed}."
+            )
         return cls(
             voice_id=str(data.get("voice_id", defaults.voice_id)),
             model_id=str(data.get("model_id", defaults.model_id)),
             stability=float(data.get("stability", defaults.stability)),
             similarity_boost=float(data.get("similarity_boost", defaults.similarity_boost)),
+            speed=speed,
             api_key_env=str(data.get("api_key_env", defaults.api_key_env)),
         )
 
@@ -140,6 +156,8 @@ class ElevenLabsConfig:
 @dataclass
 class NarrationConfig:
     provider: str = "development"
+    # Development/espeak and synthetic-timing fallback only. Does NOT control
+    # ElevenLabs speaking rate — use narration.elevenlabs.speed for that.
     words_per_minute: int = 170
     pause_between_scenes_seconds: float = 0.35
     elevenlabs: ElevenLabsConfig = field(default_factory=ElevenLabsConfig)

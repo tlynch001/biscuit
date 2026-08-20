@@ -154,14 +154,22 @@ constraints (multiples of 16, max edge 3840px, aspect ≤ 3:1,
 locally. Older GPT Image models still use the fixed enum
 (`1024x1024` / `1536x1024` / `1024x1536`). Nothing is stretched.
 
-Image cache lives next to the PNGs (`work/NNN.image.hash`). A matching hash
-skips the API. If the prompt, size, provider, model, quality, or reference
-files change:
+Image cache lives next to the PNGs (`work/NNN.image.hash`). Stamps are JSON
+with an explicit `provider` (legacy files are a bare hash). A matching
+fingerprint skips the API.
+
+If the prompt, size, provider, model, quality, or reference files change:
 
 - **development** regenerates automatically (free)
-- **openai** *reuses* the existing PNG and warns, so a config flip cannot
-  quietly spend a full story. Pass `--regenerate-image N` or `--force` to
-  spend on purpose.
+- **openai** *reuses* an existing **paid** PNG and warns, so a config flip
+  cannot quietly spend a full story. Pass `--regenerate-image N` or
+  `--force` to spend on purpose.
+- Switching **development → openai** replaces placeholder cards
+  automatically. No `--regenerate-image` is required; missing PNGs and
+  leftover development stills are generated, while successful paid stills
+  from a partial run are kept.
+- Switching from one paid provider to another is conservative: valid paid
+  assets are not silently replaced.
 
 The exact prompt sent to the API is `image_prompts/NNN.txt`. If the API
 returns a `revised_prompt`, that is stored as `image_prompts/NNN.revised.txt`.
@@ -206,7 +214,20 @@ Switch narration later without touching the orchestrator:
 ```yaml
 narration:
   provider: elevenlabs
+  # Development/espeak + synthetic timing only. Not an ElevenLabs control.
+  words_per_minute: 170
+  elevenlabs:
+    model_id: eleven_multilingual_v2
+    # Official voice_settings.speed (1.0 default, range 0.7–1.2).
+    # 0.7 = slowest supported; use this for a slower storyteller cadence.
+    speed: 0.7
 ```
+
+`words_per_minute` never reaches the ElevenLabs API. Real speaking rate is
+only `narration.elevenlabs.speed`, a unitless multiplier (`< 1` slower,
+`> 1` faster). There is no documented WPM-to-speed conversion; do not treat
+80–100 WPM as an API unit. Keep `model_id: eleven_multilingual_v2` (v3 has
+no speed control).
 
 ## How to run the example story
 
@@ -231,8 +252,27 @@ Useful flags:
 Examples:
 
 ```bash
+# Generate remaining OpenAI stills (replaces development placeholders / missing
+# PNGs; keeps successful paid images). Requires image.provider: openai.
+python -m biscuit.cli \
+  --config config/config.yaml \
+  --story stories/biscuit_in_the_snow.yaml \
+  --from-stage illustrate \
+  --through-stage illustrate
+
+# Regenerate ElevenLabs narration (picks up elevenlabs.speed)
+python -m biscuit.cli \
+  --config config/config.yaml \
+  --story stories/biscuit_in_the_snow.yaml \
+  --from-stage narrate \
+  --through-stage narrate \
+  --force
+
 # Rebuild video from existing images and narration
-python -m biscuit.cli --story stories/biscuit_in_the_snow.yaml --from-stage assemble --force
+python -m biscuit.cli \
+  --config config/config.yaml \
+  --story stories/biscuit_in_the_snow.yaml \
+  --from-stage assemble
 
 # Stop after prompts so you can edit image_prompts/*.txt
 python -m biscuit.cli --story stories/biscuit_in_the_snow.yaml --through-stage prompts
@@ -316,7 +356,8 @@ character identity across scenes.
 
 ElevenLabs support is implemented against the `text-to-speech/{id}/with-timestamps`
 endpoint. Alignment is mapped onto scene paragraphs (the same blank-line
-script structure written to `script.txt`). Biscuit uses
+script structure written to `script.txt`). Speaking rate is
+`voice_settings.speed` (default 1.0, documented range 0.7–1.2). Biscuit uses
 `eleven_multilingual_v2` on purpose; do not switch it to v3.
 
 ## YouTube
@@ -348,7 +389,7 @@ at `secrets/youtube_client_secret.json`, run once interactively to cache
 - Development image stills and opt-in OpenAI GPT Image (`gpt-image-2`)
 - Development/ElevenLabs narration (`eleven_multilingual_v2`)
 - Narration-driven scene timing
-- FFmpeg assembly with slow pan / zoom-like drift and fades
+- FFmpeg assembly with oversampled Ken Burns pan/zoom and fades
 - Thumbnail, title, description
 - Optional YouTube uploader behind `enabled: false`
 - Resumable stages, image hash cache, `--regenerate-image N`
