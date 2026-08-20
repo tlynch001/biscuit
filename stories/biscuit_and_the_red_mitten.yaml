@@ -1,0 +1,297 @@
+id: biscuit_and_the_red_mitten
+title: Biscuit and the Red Mitten
+target_duration_seconds: 420
+tone: stark American winter gothic, spare and morally serious
+setting:
+  location: two-lane county blacktop through open farm country
+  weather: incoming blizzard, wind over frozen fields, snow filling tracks as they are made
+  era: contemporary rural Midwest
+  time_of_day: iron afternoon thinning toward a white dusk
+  notes: >
+    No town square. Fence wire, a ditch, a stalled sedan, a concrete culvert
+    where a creek passes under the road. Distant grain bins. Later, a snowplow's
+    amber light. Do not add readable signs, plates, or lettering.
+visual_style:
+  medium: cinematic still photograph, wide, documentary grain
+  lighting: flat overcast winter light dying to blue dusk, then a single amber plow lamp
+  color: bone, iron, rust, and soot; two reds only — Biscuit's faded bandana and a brighter child's mitten
+  camera: 16:9 landscape still, more country than close-up, restrained, no handheld chaos
+  extra: elemental, isolated, unsentimental light; mercy is small in the frame
+narration:
+  voice: spare close-third narrator
+  pov: close third person, Biscuit-centered
+  notes: >
+    Heard once. Leave air between sentences. Do not explain the feeling.
+    Biscuit remains an ordinary dog. Sparse human speech only where it happens.
+scene_constraints:
+  min_scenes: 8
+  max_scenes: 16
+  avoid:
+    - gore
+    - graphic injury
+    - on-screen violence
+    - political messaging
+    - comedy wink at the audience
+    - readable text or signage
+    - courthouse or town-square rescue
+    - Biscuit speaking or thinking in human language
+characters:
+  - from: biscuit.yaml
+  - id: woman
+    name: the Woman
+    species: human
+    role: adult who left the stalled car
+    summary: A young mother in a coat too light for the storm, found later in the culvert with her child.
+    appearance:
+      age_look: early thirties
+      build: slight, spent
+      clothing: thin gray cloth coat, wet jeans, indoor shoes packed with snow
+      distinctive:
+        - dark hair iced at the temples
+        - no gloves
+        - snow packed in indoor shoes
+    personality:
+      - exhausted
+      - still holding on
+      - past the point of calling out
+    visual_anchors:
+      - same woman in every frame; thin gray coat, iced dark hair, no gloves
+      - she does not walk far once found; she is sitting or being carried
+  - id: child
+    name: the Child
+    species: human
+    role: small child from the car
+    summary: A little girl in a snowsuit with one red mitten missing.
+    appearance:
+      age_look: about four
+      build: small, bundled
+      clothing: navy snowsuit, one red mitten, one bare hand
+      distinctive:
+        - dark curls at the hood
+        - the bare hand chapped and pale
+        - a plastic cup still clipped to the suit
+    personality:
+      - quiet
+      - very cold
+      - holding her mother's coat
+    visual_anchors:
+      - same child; navy snowsuit, one red mitten only, dark curls in the hood
+      - never walking after the field; she is held or sitting
+  - id: driver
+    name: the Driver
+    species: human
+    role: snowplow driver who stops for the open door
+    summary: An older man in a canvas coat who gets down from a plow and follows a dog into a ditch.
+    appearance:
+      age_look: early sixties
+      build: solid, work-thick
+      clothing: canvas chore coat, orange vest, heavy gloves, wool cap
+      distinctive:
+        - gray mustache with ice in it
+        - plow dust on the shoulders
+    personality:
+      - startled
+      - competent
+      - not given to speeches
+    visual_anchors:
+      - same man; canvas coat, orange vest, wool cap, gray mustache
+      - he appears only after the plow arrives
+beats:
+  - id: the_road
+    title: A Road Without a Town
+    emotion: isolation
+    characters: [biscuit]
+    motion: slow_zoom_in
+    transition: fade
+    visual: >
+      Wide cinematic still of a two-lane county road in open winter country.
+      Fence posts. A field going white. Iron sky. Biscuit, a small cream-gold
+      retriever mix with a faded red bandana, walks the packed shoulder. No
+      houses near. Grain bins far off, black against the snow.
+    narration: >
+      The road ran without a town to finish it. Fence. Field. A sky the color
+      of wet iron. Ice stood on the wire in little teeth. Biscuit came along
+      the packed shoulder, nose down, his faded red bandana the only worn thing
+      in all that new white. No cars. No houses near enough to matter. The wind
+      had a smell in it that did not belong to rabbits or diesel. He stopped.
+      He tasted the air again. Then he turned into it.
+  - id: the_car
+    title: The Open Door
+    emotion: unease
+    characters: [biscuit]
+    motion: pan_right
+    visual: >
+      A rusted sedan nosed into the ditch, passenger door hanging open.
+      Snow already on the seats. Empty child seat visible as shape only, no
+      lettering. Biscuit stopped in the road, small against the car. Wind
+      moving the hanging door.
+    narration: >
+      A car sat in the ditch with its door hanging open. The wind moved the door
+      and let it fall back. Snow was already on the seats. A cup lay on its
+      side on the floorboard. The engine was dead. Biscuit stopped in the road.
+      He went to the running board and sniffed the wet rubber, the cloth, the
+      cold metal. People had been here. The cloth still held them, and was
+      losing them.
+  - id: the_mitten
+    title: A Red Thing in the White
+    emotion: recognition
+    characters: [biscuit]
+    motion: slow_zoom_in
+    visual: >
+      Close cinematic still: a child's bright red mitten beside a rear tire,
+      half-buried. Biscuit's cream muzzle lowering to it. Faded bandana at his
+      throat. Rusted wheel well. Flat winter light.
+    narration: >
+      Beside the tire, half in a drift, a child's mitten. Red. Brighter than
+      his bandana. He nosed it. Snow fell off the cuff. The lining still held
+      a little heat, and a smell of soap and skin. He picked it up. It was
+      bigger in his mouth than it had looked on the ground. He did not put it
+      down.
+  - id: the_tracks
+    title: Two Ways Into the Field
+    emotion: urgency
+    characters: [biscuit]
+    motion: pan_left
+    visual: >
+      Ditch bank climbing into a bare field. Two sets of footprints, one large,
+      one small and dragging, heading toward a dark treeline. Biscuit on the
+      bank with the red mitten in his mouth. Snow already softening the prints.
+    narration: >
+      Prints left the road and climbed the bank. One large. One small, dragging
+      at the heel. They went into the field toward a line of trees that might
+      have been a creek. The snow was filling them as he watched. A print was
+      a print, and then it was only a dent, and then it was nothing. He went
+      after what remained, mitten in his teeth, chest wading the drift.
+  - id: the_field
+    title: Where the Road-Sound Died
+    emotion: endurance
+    characters: [biscuit]
+    motion: pan_right
+    visual: >
+      Biscuit small in a wide white field, mitten in his mouth, fence wire
+      singing. No buildings. Tracks ahead, broken, then a place where the small
+      prints sit and end.
+    narration: >
+      The field took the sound of the road away. Wire sang. Biscuit's paws
+      broke the crust and found the hard dirt under it. The small prints
+      stopped. Then they were gone. He cast left. He cast right. Farther on
+      they were on the ground again, shallower. He kept the mitten and went.
+  - id: the_creek
+    title: The Ground Stops Talking
+    emotion: dread
+    characters: [biscuit]
+    motion: slow_zoom_out
+    visual: >
+      A frozen creek at the treeline. Black water in a crack of ice. Tracks
+      ending. Biscuit standing with ears flat, red mitten wet, no house and no
+      light anywhere in the country.
+    narration: >
+      At the creek the tracks ended. Ice. A crack of black water. No house. No
+      light. The trees were only a darker weather. Biscuit stood with his ears
+      flat and the mitten dripping. He went along the bank, upstream, then
+      down. The smell thinned. Then it gathered again, low, where the water
+      went into the dark.
+  - id: the_culvert
+    title: The Throat Under the Road
+    emotion: discovery
+    characters: [biscuit, woman, child]
+    motion: slow_zoom_in
+    visual: >
+      Interior of a concrete culvert under the road. Gray wet walls. A woman
+      sitting against the curve in a thin coat, a small child in a navy
+      snowsuit in her lap, one bare hand. Biscuit in the mouth of the pipe,
+      mitten still in his teeth, breath smoking.
+    narration: >
+      The creek went under the road through a concrete throat. He smelled milk
+      and wet wool. He went in. They were there. A woman against the wall. A
+      child in her lap. One bare hand. Ice in the woman's hair. The child's
+      eyes were open too. Neither of them spoke. Water ticked somewhere in
+      the dark behind them.
+  - id: the_hand
+    title: What He Could Put Back
+    emotion: tenderness
+    characters: [biscuit, woman, child]
+    motion: slow_zoom_in
+    visual: >
+      Close still inside the culvert: Biscuit dropping the red mitten onto the
+      child's bare hand. The woman's ungloved fingers in his scruff. Child's
+      dark curls in the hood. Concrete sweating. Almost no light.
+    narration: >
+      He dropped the mitten on the bare hand and pressed against them. The
+      child made a small sound. The woman's fingers found his fur and stayed,
+      clumsy with cold. He licked the knuckles. Then he was still. The wind
+      moved through the pipe. Time passed. No one else came down the bank.
+  - id: the_blacktop
+    title: Where Machines Remember
+    emotion: determination
+    characters: [biscuit]
+    motion: pan_right
+    visual: >
+      Biscuit alone again on the empty blacktop above the culvert, barking into
+      a white dusk. The sedan in the ditch behind him, door still hanging.
+      No other traffic. Fence and iron sky.
+    narration: >
+      Nothing came. After a time he left them. Not far. He climbed the iced
+      slope to the blacktop, where a machine might still pass. The sedan's
+      door still hung open in the ditch. He stood in the middle of the road
+      and barked. He barked until his throat caught. The country ate the
+      sound.
+  - id: the_plow
+    title: Amber, Late
+    emotion: interruption
+    characters: [biscuit, driver]
+    motion: pan_left
+    visual: >
+      A snowplow filling the frame with amber light, blade down, throwing a
+      wall of snow. The driver standing beside the open sedan in a canvas coat
+      and orange vest. Biscuit in the road, small, watching him.
+    narration: >
+      First a noise under the wind. Then amber, late, a long way off. A plow,
+      high and loud, throwing a wall of snow. It slowed for the hanging door.
+      A man got down in a canvas coat. He looked in the car. He shut the door
+      once, and the wind opened it again. He looked at the dog.
+  - id: the_pull
+    title: Back and Forth
+    emotion: insistence
+    characters: [biscuit, driver]
+    motion: slow_zoom_in
+    visual: >
+      Biscuit at the culvert mouth in the ditch, barking from the dark concrete.
+      The driver halfway down the bank in his orange vest, one glove on the
+      fence post, following the dog, not the road.
+    narration: >
+      Biscuit ran to the ditch and back. To the man. To the ditch. The man
+      shouted once. Biscuit barked from the dark of the pipe. The man came
+      down the bank, one glove on the fence post, and followed.
+  - id: the_lift
+    title: We're Going
+    emotion: extraction
+    characters: [biscuit, woman, child, driver]
+    motion: slow_zoom_out
+    visual: >
+      Culvert mouth at dusk: the driver on his knees in wet concrete, lifting
+      the child in the navy snowsuit. The woman trying to rise in the thin
+      coat. Biscuit at the threshold, not in the way. Plow lights washing the
+      ice above them.
+    narration: >
+      The man went to his knees in the wet concrete. He took the child. The
+      woman tried to stand and could not, so he came back for her and got her
+      up. He said, We're going. That was all. They climbed the bank in the
+      plow light. Biscuit walked behind them as far as the truck's running
+      board. No farther.
+  - id: the_record
+    title: The Road Keeps Nothing
+    emotion: aftertaste
+    characters: [biscuit]
+    motion: pan_right
+    visual: >
+      Night coming. The plow small and amber, receding on the long straight
+      road. The sedan still in the ditch, door hanging. Biscuit on the
+      shoulder, shaking ice from his coat, walking south, tiny in the
+      elemental landscape. Snow already filling the field. No houses.
+    narration: >
+      The cab door shut. Heat leaked out and was gone. The plow moved off,
+      amber shrinking on the long straight road. Biscuit stood by the sedan.
+      Snow was already taking the field back. He shook the ice from his coat
+      and went on, small under that iron sky. Behind him the open door
+      gathered white. The road kept no record.

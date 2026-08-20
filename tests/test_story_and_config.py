@@ -24,6 +24,26 @@ def test_example_story_loads_and_resolves_biscuit(example_story_path: Path, repo
     assert spec.beats[0].narration
 
 
+def test_red_mitten_story_loads_and_resolves_biscuit(repo_root: Path) -> None:
+    spec = load_story(
+        repo_root / "stories" / "biscuit_and_the_red_mitten.yaml",
+        characters_dir=repo_root / "characters",
+    )
+    assert spec.id == "biscuit_and_the_red_mitten"
+    assert spec.title == "Biscuit and the Red Mitten"
+    biscuit = spec.character_map()["biscuit"]
+    assert biscuit.source_path is not None
+    assert "biscuit.yaml" in biscuit.source_path
+    assert any("bandana" in phrase.lower() for phrase in biscuit.appearance_phrases())
+    ids = [character.id for character in spec.characters]
+    assert ids == ["biscuit", "woman", "child", "driver"]
+    assert spec.constraints.min_scenes <= len(spec.beats) <= spec.constraints.max_scenes
+    assert all(beat.narration and beat.visual for beat in spec.beats)
+    joined = " ".join(beat.narration for beat in spec.beats).lower()
+    assert "she followed because" not in joined
+    assert "courthouse" not in joined
+
+
 def test_missing_character_reference_fails(tmp_path: Path) -> None:
     raw = {
         "id": "broken",
