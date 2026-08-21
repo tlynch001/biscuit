@@ -17,7 +17,8 @@ from biscuit.artifacts import ArtifactStore, new_run_id
 from biscuit.config import AppConfig
 from biscuit.exceptions import ArtifactError, ConfigurationError, ImageGenerationError
 from biscuit.hashing import sha256_file, sha256_json
-from biscuit.models import Character, CharacterReference, Scene, StoryManifest, StorySpec, join_script
+from biscuit.models import Character, CharacterReference, Scene, StoryManifest, StorySpec, TimingDocument, join_script
+from biscuit.media import insert_silence_segments
 from biscuit.performance import join_performance_script
 from biscuit.prompts import apply_prompts
 from biscuit.providers.base import ImageRequest, NarrationRequest
@@ -25,7 +26,7 @@ from biscuit.providers.registry import image_registry, load_builtin_providers, n
 from biscuit.publishing import generate_description, generate_title, render_thumbnail
 from biscuit.stages import STAGES, stage_index
 from biscuit.story import load_story
-from biscuit.timing import apply_timing_to_scenes
+from biscuit.timing import TIMING_LAYOUT, apply_timing_to_scenes, ensure_unspoken_hold_layout
 from biscuit.video import MOTION_FILTER_VERSION, OUTRO_VERSION, assemble_video
 from biscuit.visual_plan import PLANNER_VERSION, apply_story_plan, plan_for_story, plan_to_dict
 from biscuit.youtube import publish_video
@@ -239,45 +240,70 @@ class StoryPipeline:
             }
         )
         state = store.read_run_state()
-        fresh = (
-            store.narration_path.exists()
+        source_path = store.source_narration_path
+        audio_fresh = (
+            (source_path.exists() or store.narration_path.exists())
             and store.timing_path.exists()
             and state.get("narrate_hash") == input_hash
+            and not force
         )
-        if fresh and not force:
+        cached_timing = store.read_timing() if audio_fresh else None
+        layout_fresh = bool(
+            audio_fresh and cached_timing is not None and cached_timing.layout == TIMING_LAYOUT
+        )
+        if layout_fresh and cached_timing is not None:
             logger.info("Reusing narration audio and timing")
-            timing = store.read_timing()
-            if timing:
-                apply_timing_to_scenes(manifest.scenes, timing)
-                store.write_manifest(manifest)
+            apply_timing_to_scenes(manifest.scenes, cached_timing)
+            store.write_manifest(manifest)
             return manifest
 
-        if self._config.narration.provider == "elevenlabs":
-            self._config.narration.elevenlabs.resolve_api_key(required=True)
+        if not audio_fresh:
+            if self._config.narration.provider == "elevenlabs":
+                self._config.narration.elevenlabs.resolve_api_key(required=True)
 
-        logger.info("Synthesizing narration via %s provider", self._narration_provider.name)
-        store.write_text(store.performance_path, performance)
-        result = self._narration_provider.synthesize(
-            NarrationRequest(
-                script_text=tts_script,
-                scenes=manifest.scenes,
-                words_per_minute=self._config.narration.words_per_minute,
-                pause_between_scenes=self._config.narration.pause_between_scenes_seconds,
-            ),
-            store.narration_path,
-        )
-        store.write_timing(result.timing)
-        apply_timing_to_scenes(manifest.scenes, result.timing)
+            logger.info("Synthesizing narration via %s provider", self._narration_provider.name)
+            store.write_text(store.performance_path, performance)
+            result = self._narration_provider.synthesize(
+                NarrationRequest(
+                    script_text=tts_script,
+                    scenes=manifest.scenes,
+                    words_per_minute=self._config.narration.words_per_minute,
+                    pause_between_scenes=self._config.narration.pause_between_scenes_seconds,
+                ),
+                store.narration_path,
+            )
+            store.ensure_dirs()
+            shutil.copy2(store.narration_path, source_path)
+            timing = result.timing
+        else:
+            logger.info("Reusing narration audio; rebuilding unspoken hold timing")
+            if not source_path.exists() and store.narration_path.exists():
+                shutil.copy2(store.narration_path, source_path)
+            timing = cached_timing or TimingDocument(provider="unknown", total_duration_seconds=0.0)
+
+        timing = ensure_unspoken_hold_layout(manifest.scenes, timing)
+        if source_path.exists():
+            shutil.copy2(source_path, store.narration_path)
+        if timing.audio_silence_insertions:
+            logger.info(
+                "Inserting %d silence segment(s) so unspoken holds stay in sync with narration",
+                len(timing.audio_silence_insertions),
+            )
+            insert_silence_segments(store.narration_path, timing.audio_silence_insertions)
+
+        store.write_timing(timing)
+        apply_timing_to_scenes(manifest.scenes, timing)
         for scene in manifest.scenes:
             scene.target_duration_seconds = scene.target_duration_seconds or scene.duration_seconds
         store.write_manifest(manifest)
         state = store.read_run_state()
         state["narrate_hash"] = input_hash
+        state["timing_layout"] = TIMING_LAYOUT
         store.write_run_state(state)
         logger.info(
             "Narration duration %.1fs across %d scenes",
-            result.timing.total_duration_seconds,
-            len(result.timing.scenes),
+            timing.total_duration_seconds,
+            len(timing.scenes),
         )
         return manifest
 
