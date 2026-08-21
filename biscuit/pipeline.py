@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import time
 from pathlib import Path
 
@@ -17,6 +18,7 @@ from biscuit.config import AppConfig
 from biscuit.exceptions import ArtifactError, ConfigurationError, ImageGenerationError
 from biscuit.hashing import sha256_file, sha256_json
 from biscuit.models import Character, Scene, StoryManifest, StorySpec, join_script
+from biscuit.performance import join_performance_script
 from biscuit.prompts import apply_prompts
 from biscuit.providers.base import ImageRequest, NarrationRequest
 from biscuit.providers.registry import image_registry, load_builtin_providers, narration_registry, story_registry
@@ -25,6 +27,7 @@ from biscuit.stages import STAGES, stage_index
 from biscuit.story import load_story
 from biscuit.timing import apply_timing_to_scenes
 from biscuit.video import MOTION_FILTER_VERSION, OUTRO_VERSION, assemble_video
+from biscuit.visual_plan import PLANNER_VERSION, apply_story_plan, plan_for_story, plan_to_dict
 from biscuit.youtube import publish_video
 
 logger = logging.getLogger(__name__)
@@ -39,23 +42,26 @@ def _image_provider_is_paid(name: str | None) -> bool:
 def _parse_image_stamp(path: Path) -> dict[str, str | None]:
     """Read a scene image stamp. Supports JSON provenance and legacy bare hashes."""
 
+    empty = {"hash": None, "provider": None, "shot_id": None}
     if not path.exists():
-        return {"hash": None, "provider": None}
+        return dict(empty)
     text = path.read_text(encoding="utf-8").strip()
     if not text:
-        return {"hash": None, "provider": None}
+        return dict(empty)
     if text.startswith("{"):
         try:
             data = json.loads(text)
             if isinstance(data, dict) and data.get("hash"):
                 provider = data.get("provider")
+                shot_id = data.get("shot_id")
                 return {
                     "hash": str(data["hash"]).strip(),
                     "provider": str(provider) if provider else None,
+                    "shot_id": str(shot_id) if shot_id else None,
                 }
         except json.JSONDecodeError:
             pass
-    return {"hash": text, "provider": None}
+    return {"hash": text, "provider": None, "shot_id": None}
 
 
 class StoryPipeline:
@@ -97,7 +103,7 @@ class StoryPipeline:
         logger.info("Artifacts directory: %s", store.root)
 
         state = store.read_run_state()
-        story_hash = sha256_file(Path(story_path))
+        story_hash = self._expand_cache_key(spec, Path(story_path))
         if state.get("story_hash") and state["story_hash"] != story_hash:
             logger.warning("Story file has changed since the last run; downstream caches may be stale.")
 
@@ -165,17 +171,33 @@ class StoryPipeline:
         logger.info("Expanding story beats into scenes via %s provider", self._story_provider.name)
         manifest = self._expand(spec)
         store.write_manifest(manifest)
-        store.write_text(store.script_path, manifest.script_text)
+        store.write_text(store.script_path, manifest.literary_script_text or manifest.script_text)
+        if manifest.performance_text:
+            store.write_text(store.performance_path, manifest.performance_text)
+        store.write_json(store.visual_plan_path, plan_to_dict(manifest))
         state["expand_hash"] = story_hash
         logger.info("Wrote %s (%d scenes)", store.manifest_path, len(manifest.scenes))
         return manifest
 
+    def _expand_cache_key(self, spec: StorySpec, story_path: Path) -> str:
+        return sha256_json(
+            {
+                "story": sha256_file(story_path),
+                "planner": PLANNER_VERSION,
+                "has_visual_plan": bool(plan_for_story(spec.id)),
+            }
+        )
+
     def _expand(self, spec: StorySpec) -> StoryManifest:
         manifest = self._story_provider.expand(spec)
+        literary = join_script(manifest.scenes)
+        manifest.literary_script_text = literary
+        manifest = apply_story_plan(manifest, spec)
         manifest.story_provider = self._story_provider.name
         manifest.image_provider = self._image_provider.name
         manifest.narration_provider = self._narration_provider.name
         manifest.script_text = join_script(manifest.scenes)
+        manifest.performance_text = join_performance_script(manifest.scenes)
         return manifest
 
     def _run_prompts(self, spec: StorySpec, manifest: StoryManifest, store: ArtifactStore, force: bool) -> StoryManifest:
@@ -187,14 +209,21 @@ class StoryPipeline:
                 store.write_text(prompt_path, scene.image_prompt)
             scene.image_prompt_path = store.relative(prompt_path)
         store.write_manifest(manifest)
-        store.write_text(store.script_path, manifest.script_text)
+        store.write_text(store.script_path, manifest.literary_script_text or manifest.script_text)
+        if manifest.performance_text:
+            store.write_text(store.performance_path, manifest.performance_text)
+        store.write_json(store.visual_plan_path, plan_to_dict(manifest))
         return manifest
 
     def _run_narrate(self, manifest: StoryManifest, store: ArtifactStore, force: bool) -> StoryManifest:
-        script = manifest.script_text or join_script(manifest.scenes)
+        spoken = join_script(manifest.scenes)
+        performance = manifest.performance_text or join_performance_script(manifest.scenes)
+        manifest.performance_text = performance
+        tts_script = performance if self._narration_provider.name == "elevenlabs" else spoken
         input_hash = sha256_json(
             {
-                "script": script,
+                "script": spoken,
+                "performance": performance,
                 "provider": self._narration_provider.name,
                 "wpm": self._config.narration.words_per_minute,
                 "elevenlabs_speed": (
@@ -227,9 +256,10 @@ class StoryPipeline:
             self._config.narration.elevenlabs.resolve_api_key(required=True)
 
         logger.info("Synthesizing narration via %s provider", self._narration_provider.name)
+        store.write_text(store.performance_path, performance)
         result = self._narration_provider.synthesize(
             NarrationRequest(
-                script_text=script,
+                script_text=tts_script,
                 scenes=manifest.scenes,
                 words_per_minute=self._config.narration.words_per_minute,
                 pause_between_scenes=self._config.narration.pause_between_scenes_seconds,
@@ -301,6 +331,11 @@ class StoryPipeline:
             stamp = _parse_image_stamp(stamp_path)
             recorded_provider = self._resolve_stamp_provider(stamp, scene, present)
             hash_matches = stamp["hash"] == cache_key if stamp["hash"] else False
+            shot_changed = bool(scene.shot_id) and stamp.get("shot_id") not in {None, scene.shot_id}
+
+            if shot_changed:
+                recorded_provider = "development"
+                hash_matches = False
 
             if output.exists() and hash_matches and not force_this:
                 logger.info(
@@ -314,6 +349,7 @@ class StoryPipeline:
             elif (
                 output.exists()
                 and not force_this
+                and not shot_changed
                 and _image_provider_is_paid(current_provider)
                 and recorded_provider not in _FREE_IMAGE_PROVIDERS
             ):
@@ -341,33 +377,52 @@ class StoryPipeline:
                         scene.id,
                         current_provider,
                     )
-                references = [ref for character in present for ref in character.references]
                 started = time.monotonic()
-                try:
-                    self._image_provider.generate(
-                        ImageRequest(
-                            scene=scene,
-                            prompt=scene.image_prompt,
-                            characters=present,
-                            references=references,
-                            width=width,
-                            height=height,
-                        ),
-                        output,
+                reused_from = self._reuse_source_image(scene, manifest, store)
+                if reused_from is not None:
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(reused_from, output)
+                    logger.info(
+                        "image reused shot=%s scene=%s from %s",
+                        scene.shot_id,
+                        scene.index,
+                        scene.reuse_shot_id,
                     )
-                except ImageGenerationError:
-                    raise
-                except Exception as exc:  # noqa: BLE001
-                    raise ImageGenerationError(
-                        f"Image generation failed for {scene.id} (scene {scene.index:03d}): {exc}"
-                    ) from exc
+                else:
+                    references = [ref for character in present for ref in character.references]
+                    try:
+                        self._image_provider.generate(
+                            ImageRequest(
+                                scene=scene,
+                                prompt=scene.image_prompt,
+                                characters=present,
+                                references=references,
+                                width=width,
+                                height=height,
+                            ),
+                            output,
+                        )
+                    except ImageGenerationError:
+                        raise
+                    except Exception as exc:  # noqa: BLE001
+                        raise ImageGenerationError(
+                            f"Image generation failed for {scene.id} (scene {scene.index:03d}): {exc}"
+                        ) from exc
                 if not output.exists():
                     raise ImageGenerationError(
                         f"Image provider {current_provider} did not create {output} "
                         f"for {scene.id} (scene {scene.index:03d})"
                     )
                 stamp_path.write_text(
-                    json.dumps({"v": 1, "hash": cache_key, "provider": current_provider}, sort_keys=True)
+                    json.dumps(
+                        {
+                            "v": 1,
+                            "hash": cache_key,
+                            "provider": current_provider,
+                            "shot_id": scene.shot_id or scene.id,
+                        },
+                        sort_keys=True,
+                    )
                     + "\n",
                     encoding="utf-8",
                 )
@@ -385,6 +440,27 @@ class StoryPipeline:
         manifest.image_provider = current_provider
         store.write_manifest(manifest)
         return manifest
+
+    def _reuse_source_image(
+        self,
+        scene: Scene,
+        manifest: StoryManifest,
+        store: ArtifactStore,
+    ) -> Path | None:
+        if not scene.reuse_shot_id:
+            return None
+        source = next((item for item in manifest.scenes if item.shot_id == scene.reuse_shot_id), None)
+        if source is None or source.index == scene.index:
+            return None
+        path = store.scene_image_path(source.index)
+        if not path.exists():
+            logger.warning(
+                "Reuse source %s for scene %s is missing; generating a new still.",
+                scene.reuse_shot_id,
+                scene.index,
+            )
+            return None
+        return path
 
     def _resolve_stamp_provider(
         self,
@@ -441,11 +517,15 @@ class StoryPipeline:
                 references.append(entry)
         payload: dict[str, object] = {
             "prompt": scene.image_prompt.strip(),
+            "visual": scene.visual_description.strip(),
             "width": self._config.image.width,
             "height": self._config.image.height,
             "provider": provider_name,
             "model": openai.model if provider_name == "openai" else None,
             "quality": openai.quality if provider_name == "openai" else None,
+            "shot_id": scene.shot_id or None,
+            "reuse_shot_id": scene.reuse_shot_id or None,
+            "world_facts": list(scene.world_facts),
             "references": references,
         }
         if provider_name == "xai":
@@ -572,6 +652,8 @@ class StoryPipeline:
             self._narration_provider.name,
             self._config.youtube.enabled,
         )
+        if plan_for_story(spec.id):
+            logger.info("Visual-beat plan enabled for %s (planner %s)", spec.id, PLANNER_VERSION)
         if regenerate_images:
             logger.info("Regenerate image scenes: %s", regenerate_images)
         for beat in spec.beats:

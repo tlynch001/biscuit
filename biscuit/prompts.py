@@ -51,6 +51,12 @@ def build_image_prompt(
             "same markings and face. Do not invent extra animals, people, or props that change identity."
         )
 
+    if scene.world_facts:
+        sections.append(
+            "World continuity (do not contradict; treat as hard constraints):\n"
+            + "\n".join(f"- {fact}" for fact in scene.world_facts)
+        )
+
     avoid = getattr(spec, "constraints", None)
     avoid_list = avoid.avoid if avoid is not None else []
     if avoid_list:

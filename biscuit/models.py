@@ -308,6 +308,11 @@ class Scene:
     motion: str = "slow_zoom_in"
     image_path: str | None = None
     image_prompt_path: str | None = None
+    performance_narration: str = ""
+    break_after_seconds: float = 0.0
+    shot_id: str = ""
+    reuse_shot_id: str = ""
+    world_facts: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -335,6 +340,11 @@ class Scene:
                 "end_seconds": self.end_seconds,
                 "duration_seconds": self.duration_seconds,
             },
+            "performance_narration": self.performance_narration,
+            "break_after_seconds": self.break_after_seconds,
+            "shot_id": self.shot_id,
+            "reuse_shot_id": self.reuse_shot_id,
+            "world_facts": list(self.world_facts),
         }
 
     @classmethod
@@ -359,6 +369,11 @@ class Scene:
             motion=str(data.get("motion", "slow_zoom_in")),
             image_path=assets.get("image") or data.get("image_path"),
             image_prompt_path=assets.get("image_prompt") or data.get("image_prompt_path"),
+            performance_narration=str(data.get("performance_narration", "")),
+            break_after_seconds=float(data.get("break_after_seconds") or 0.0),
+            shot_id=str(data.get("shot_id", "")),
+            reuse_shot_id=str(data.get("reuse_shot_id", "")),
+            world_facts=_as_str_list(data.get("world_facts")),
         )
 
 
@@ -457,6 +472,8 @@ class StoryManifest:
     scenes: list[Scene]
     constraints: SceneConstraints = field(default_factory=SceneConstraints)
     script_text: str = ""
+    literary_script_text: str = ""
+    performance_text: str = ""
     story_provider: str = "template"
     image_provider: str = "development"
     narration_provider: str = "development"
@@ -478,6 +495,8 @@ class StoryManifest:
             "constraints": self.constraints.to_dict(),
             "scenes": [scene.to_dict() for scene in self.scenes],
             "script_text": self.script_text,
+            "literary_script_text": self.literary_script_text,
+            "performance_text": self.performance_text,
             "providers": {
                 "story": self.story_provider,
                 "image": self.image_provider,
@@ -501,6 +520,8 @@ class StoryManifest:
             constraints=SceneConstraints.from_dict(data.get("constraints")),
             scenes=[Scene.from_dict(item) for item in data.get("scenes") or []],
             script_text=str(data.get("script_text", "")),
+            literary_script_text=str(data.get("literary_script_text", "")),
+            performance_text=str(data.get("performance_text", "")),
             story_provider=str(providers.get("story", "template")),
             image_provider=str(providers.get("image", "development")),
             narration_provider=str(providers.get("narration", "development")),
