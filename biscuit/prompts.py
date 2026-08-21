@@ -67,6 +67,12 @@ def _build_local_shot_prompt(
             char_lines.append(f"- {_in_frame_identity(character)}")
         sections.append("\n".join(char_lines))
 
+    if scene.entity_identity:
+        sections.append(
+            "Persistent identity of visible things in this photograph — the same objects, not new ones:\n"
+            + "\n".join(f"- {line}" for line in scene.entity_identity)
+        )
+
     avoid = getattr(spec, "constraints", None)
     avoid_list = avoid.avoid if avoid is not None else []
     if avoid_list:

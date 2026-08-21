@@ -127,10 +127,15 @@ def join_performance_script(scenes: list[Scene]) -> str:
     parts: list[str] = []
     for scene in scenes:
         body = (scene.performance_narration or scene.narration).strip()
-        if not body:
-            continue
-        tag = ssml_break(scene.break_after_seconds)
-        parts.append(f"{body} {tag}".strip() if tag else body)
+        hold = scene.hold_seconds or (scene.break_after_seconds if not body else 0.0)
+        tag = ssml_break(scene.break_after_seconds if body else hold)
+        if body and tag:
+            parts.append(f"{body} {tag}".strip())
+        elif body:
+            parts.append(body)
+        elif tag:
+            # Unspoken visual hold: a pause in the performance, no new words.
+            parts.append(tag)
     return "\n\n".join(parts)
 
 

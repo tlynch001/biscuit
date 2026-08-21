@@ -61,6 +61,11 @@ def synthetic_timing(
     for index, scene in enumerate(scenes):
         scene_start = cursor
         scene_words = tokenize_words(scene.narration)
+        if not scene_words:
+            hold = scene.target_duration_seconds or scene.hold_seconds or scene.break_after_seconds or 2.5
+            cursor = scene_start + max(hold, 0.4)
+            scene_timings.append(SceneTiming(scene.id, scene_start, cursor))
+            continue
         if scene.break_after_seconds:
             pause_after = scene.break_after_seconds
         else:
@@ -119,11 +124,21 @@ def timing_from_character_alignment(
     end_times: list[float],
     provider: str,
 ) -> TimingDocument:
-    """Map ElevenLabs-style character alignment onto scene paragraphs."""
+    """Map ElevenLabs-style character alignment onto scene paragraphs.
+
+    Spoken scenes consume spoken paragraphs. Unspoken hold shots occupy the
+    pause between surrounding spoken scenes (or ``hold_seconds`` if no gap).
+    """
+
+    from biscuit.ssml import spoken_fingerprint
 
     paragraphs = _split_paragraphs(script_text)
-    scene_timings: list[SceneTiming] = []
+    spoken_paragraphs = [item for item in paragraphs if spoken_fingerprint(item[2])]
+    spoken_scenes = [scene for scene in scenes if scene.narration.strip()]
+
+    spoken_timings: list[SceneTiming] = []
     words: list[WordTiming] = []
+    usable = min(len(spoken_paragraphs), len(spoken_scenes))
 
     def char_time(offset: int, *, is_end: bool) -> float:
         times = end_times if is_end else start_times
@@ -132,20 +147,41 @@ def timing_from_character_alignment(
         index = min(max(offset, 0), len(times) - 1)
         return times[index]
 
-    usable = min(len(paragraphs), len(scenes))
-    for scene, (start, end, text) in zip(scenes[:usable], paragraphs[:usable], strict=True):
+    for scene, (start, end, text) in zip(spoken_scenes[:usable], spoken_paragraphs[:usable], strict=True):
         start_seconds = char_time(start, is_end=False)
         end_seconds = char_time(end, is_end=True)
-        if scene_timings:
-            start_seconds = scene_timings[-1].end_seconds
-        scene_timings.append(SceneTiming(scene.id, start_seconds, max(end_seconds, start_seconds)))
+        if spoken_timings:
+            start_seconds = max(start_seconds, spoken_timings[-1].end_seconds)
+        spoken_timings.append(SceneTiming(scene.id, start_seconds, max(end_seconds, start_seconds)))
         words.extend(_words_from_alignment_span(text, scene.id, start, characters, start_times, end_times))
+
+    scene_timings: list[SceneTiming] = []
+    last_end = 0.0
+    remaining_spoken = list(spoken_timings)
+    for scene in scenes:
+        if scene.narration.strip():
+            item = remaining_spoken.pop(0) if remaining_spoken else SceneTiming(scene.id, last_end, last_end + 0.4)
+            if item.start_seconds < last_end:
+                item = SceneTiming(item.scene_id, last_end, max(item.end_seconds, last_end + 0.2))
+            scene_timings.append(item)
+            last_end = item.end_seconds
+            continue
+        hold = scene.target_duration_seconds or scene.hold_seconds or scene.break_after_seconds or 2.5
+        next_start = remaining_spoken[0].start_seconds if remaining_spoken else last_end + hold
+        gap = max(next_start - last_end, 0.0)
+        duration = gap if gap >= 0.35 else hold
+        end = last_end + duration
+        if remaining_spoken and end > remaining_spoken[0].start_seconds:
+            # The pause is already in the next spoken start; use the gap only.
+            end = max(last_end + 0.2, remaining_spoken[0].start_seconds)
+        scene_timings.append(SceneTiming(scene.id, last_end, end))
+        last_end = end
 
     total = end_times[-1] if end_times else (scene_timings[-1].end_seconds if scene_timings else 0.0)
     if scene_timings:
         last = scene_timings[-1]
         scene_timings[-1] = SceneTiming(last.scene_id, last.start_seconds, max(last.end_seconds, total))
-    return TimingDocument(provider=provider, total_duration_seconds=total, scenes=scene_timings, words=words)
+    return TimingDocument(provider=provider, total_duration_seconds=max(total, last_end), scenes=scene_timings, words=words)
 
 
 def apply_timing_to_scenes(scenes: list[Scene], timing: TimingDocument) -> None:
