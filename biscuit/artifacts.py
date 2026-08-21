@@ -38,6 +38,14 @@ class ArtifactStore:
         return self.root / "script.txt"
 
     @property
+    def performance_path(self) -> Path:
+        return self.root / "performance.txt"
+
+    @property
+    def visual_plan_path(self) -> Path:
+        return self.root / "visual_plan.json"
+
+    @property
     def narration_path(self) -> Path:
         return self.root / "narration.mp3"
 

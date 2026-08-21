@@ -64,7 +64,8 @@ class ElevenLabsNarrationProvider(NarrationProvider):
         output_path.write_bytes(audio_bytes)
         logger.info("Wrote narration audio to %s", output_path)
 
-        timing = self._timing_from_response(data.get("alignment"), request, script_text)
+        alignment_text = script_text
+        timing = self._timing_from_response(data.get("alignment"), request, alignment_text)
         return NarrationResult(audio_path=output_path, timing=timing)
 
     def _timing_from_response(

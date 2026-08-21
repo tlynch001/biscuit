@@ -61,7 +61,10 @@ def synthetic_timing(
     for index, scene in enumerate(scenes):
         scene_start = cursor
         scene_words = tokenize_words(scene.narration)
-        pause_after = pause_between_scenes if index < len(scenes) - 1 else 0.15
+        if scene.break_after_seconds:
+            pause_after = scene.break_after_seconds
+        else:
+            pause_after = pause_between_scenes if index < len(scenes) - 1 else 0.15
         speech = estimate_speech_seconds(scene.narration, words_per_minute, pause_seconds=0.0)
         if not scene_words:
             cursor = scene_start + speech
@@ -186,7 +189,10 @@ def _words_from_alignment_span(
         end_index = min(max(abs_end - 1, 0), max(len(end_times) - 1, 0)) if end_times else 0
         start = start_times[start_index] if start_times else 0.0
         end = end_times[end_index] if end_times else start
+        token = match.group()
+        if token.startswith("<") or token.startswith("time=") or token == "/>":
+            continue
         words.append(
-            WordTiming(word=match.group(), start_seconds=start, end_seconds=max(end, start), scene_id=scene_id)
+            WordTiming(word=token, start_seconds=start, end_seconds=max(end, start), scene_id=scene_id)
         )
     return words

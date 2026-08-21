@@ -365,7 +365,9 @@ Default layout (reused across runs so assets can be cached):
 output/<story_id>/
   run.json
   manifest.json
-  script.txt
+  script.txt                 # literary spoken script (authored beats)
+  performance.txt            # SSML performance script sent to ElevenLabs
+  visual_plan.json           # visual beats, pauses, continuity facts
   narration.mp3
   narration_timing.json
   image_prompts/001.txt ...          # exact prompt sent (plus optional .revised.txt)
@@ -375,6 +377,36 @@ output/<story_id>/
   thumbnail.png
   title.txt
   description.txt
+```
+
+`script.txt` is the literary narration. `performance.txt` is what ElevenLabs
+Multilingual v2 receives: the same spoken words with inferred (or directed)
+`<break time="Ns" />` pauses. `visual_plan.json` lists each illustration
+unit. Episode Two (`biscuit_and_the_red_mitten.yaml`) expands into many
+small visual beats (currently 59 stills, including two reused establishing
+shots); other stories stay one scene per authored beat but still
+get a performance script.
+
+To regenerate Red Mitten with the new pacing and beats (re-expand, re-narrate,
+re-illustrate). Use `--force` so old 13-scene stills are not kept:
+
+```bash
+python -m biscuit.cli \
+  --config config/config.yaml \
+  --story stories/biscuit_and_the_red_mitten.yaml \
+  --force \
+  --verbose
+```
+
+Stop after illustration if you only want stills:
+
+```bash
+python -m biscuit.cli \
+  --config config/config.yaml \
+  --story stories/biscuit_and_the_red_mitten.yaml \
+  --through-stage illustrate \
+  --force \
+  --verbose
 ```
 
 `manifest.json` is the inspectable scene representation: narration, prompts,
@@ -415,8 +447,9 @@ provider uses strong structured prompts only. GPT Image does not guarantee
 character identity across scenes.
 
 ElevenLabs support is implemented against the `text-to-speech/{id}/with-timestamps`
-endpoint. Alignment is mapped onto scene paragraphs (the same blank-line
-script structure written to `script.txt`). Speaking rate is
+endpoint. The **performance** script (`performance.txt`) is sent when
+`narration.provider: elevenlabs`. Alignment is mapped onto visual-beat
+paragraphs. `script.txt` remains the literary spoken words. Speaking rate is
 `voice_settings.speed` (default 1.0, documented range 0.7–1.2). Biscuit uses
 `eleven_multilingual_v2` on purpose; do not switch it to v3.
 

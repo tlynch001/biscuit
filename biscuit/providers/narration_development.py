@@ -87,7 +87,11 @@ class DevelopmentNarrationProvider(NarrationProvider):
             estimate_speech_seconds(
                 scene.narration,
                 request.words_per_minute,
-                pause_seconds=request.pause_between_scenes if index < len(request.scenes) - 1 else 0.15,
+                pause_seconds=(
+                    scene.break_after_seconds
+                    if scene.break_after_seconds
+                    else (request.pause_between_scenes if index < len(request.scenes) - 1 else 0.15)
+                ),
             )
             for index, scene in enumerate(request.scenes)
         )
