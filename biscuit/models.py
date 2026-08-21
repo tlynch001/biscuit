@@ -476,22 +476,37 @@ class TimingDocument:
     total_duration_seconds: float
     scenes: list[SceneTiming] = field(default_factory=list)
     words: list[WordTiming] = field(default_factory=list)
+    layout: str = ""
+    audio_silence_insertions: list[tuple[float, float]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "provider": self.provider,
             "total_duration_seconds": round(self.total_duration_seconds, 3),
+            "layout": self.layout or None,
+            "audio_silence_insertions": [
+                {"at_seconds": round(at, 3), "silence_seconds": round(dur, 3)}
+                for at, dur in self.audio_silence_insertions
+            ],
             "scenes": [item.to_dict() for item in self.scenes],
             "words": [item.to_dict() for item in self.words],
         }
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> TimingDocument:
+        insertions: list[tuple[float, float]] = []
+        for item in data.get("audio_silence_insertions") or []:
+            if isinstance(item, dict):
+                insertions.append((float(item.get("at_seconds", 0.0)), float(item.get("silence_seconds", 0.0))))
+            elif isinstance(item, (list, tuple)) and len(item) >= 2:
+                insertions.append((float(item[0]), float(item[1])))
         return cls(
             provider=str(data.get("provider", "unknown")),
             total_duration_seconds=float(data.get("total_duration_seconds", 0.0)),
             scenes=[SceneTiming.from_dict(item) for item in data.get("scenes") or []],
             words=[WordTiming.from_dict(item) for item in data.get("words") or []],
+            layout=str(data.get("layout") or ""),
+            audio_silence_insertions=insertions,
         )
 
 

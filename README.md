@@ -415,6 +415,11 @@ python -m biscuit.cli \
 Then read `output/biscuit_and_the_red_mitten/visual_plan.json` and
 `performance.txt`. Keep `image.provider: development`.
 
+If unspoken geography holds were generated with a previous build, re-run from
+`narrate` so scene durations pick up planned `hold_seconds`. Existing ElevenLabs
+audio can be reused; the pipeline pads silence to match the holds. Then
+`assemble`. Images do not need to be regenerated.
+
 To regenerate the full film after inspecting the plan, use `--force` so older
 stills are not kept:
 

@@ -1,10 +1,8 @@
 """Narration timing: map audio alignment onto scenes.
 
-Scene duration is driven by spoken timing, never by a guessed slide length.
-When a real TTS provider (ElevenLabs) returns character-level alignment,
-this module converts it into per-scene and per-word timings. When a
-development provider has no alignment, it synthesizes deterministic
-timings from word counts so the rest of the pipeline still runs.
+Narrated shots take their duration from speech alignment. Unspoken visual
+holds keep ``hold_seconds`` / ``target_duration_seconds`` instead of being
+squeezed into whatever pause happens to exist between spoken paragraphs.
 """
 
 from __future__ import annotations
@@ -24,6 +22,9 @@ _PUNCT_PAUSE = {
     "—": 0.25,
     "–": 0.2,
 }
+
+# Bump when unspoken-hold layout changes so cached timing is rebuilt.
+TIMING_LAYOUT = "unspoken-holds-v1"
 
 
 def tokenize_words(text: str) -> list[str]:
@@ -91,7 +92,9 @@ def synthetic_timing(
         scene_timings.append(SceneTiming(scene.id, scene_start, cursor))
 
     natural_total = cursor if cursor > 0 else 1.0
-    target = total_duration_seconds if total_duration_seconds is not None else natural_total
+    has_holds = any(is_silent_scene(scene) for scene in scenes)
+    # Uniform scale would crush planned visual holds to fit spoken-only audio.
+    target = natural_total if has_holds else (total_duration_seconds if total_duration_seconds is not None else natural_total)
     factor = target / natural_total
     if factor != 1.0:
         words = [
@@ -112,7 +115,122 @@ def synthetic_timing(
         total_duration_seconds=target,
         scenes=scene_timings,
         words=words,
+        layout=TIMING_LAYOUT,
+        audio_silence_insertions=_source_insertions_for_program_holds(scenes, scene_timings),
     )
+
+
+def is_silent_scene(scene: Scene) -> bool:
+    return not str(scene.narration or "").strip()
+
+
+def planned_hold_seconds(scene: Scene) -> float:
+    """Visual duration for a shot with no spoken words."""
+
+    return float(scene.target_duration_seconds or scene.hold_seconds or scene.break_after_seconds or 2.5)
+
+
+def layout_program_timeline(
+    scenes: list[Scene],
+    spoken_audio: list[SceneTiming],
+    words: list[WordTiming],
+    *,
+    provider: str,
+) -> TimingDocument:
+    """Build the program clock from source-audio spoken times plus planned holds.
+
+    Unspoken shots always receive ``planned_hold_seconds``. If those holds do
+    not fit in the source-audio gap before the next speech, later spoken
+    shots (and their word timings) shift forward and silence insertions are
+    recorded so the audio file can be padded to match.
+    """
+
+    remaining = list(spoken_audio)
+    scene_timings: list[SceneTiming] = []
+    delay = 0.0
+    cursor = 0.0
+    insertions: list[tuple[float, float]] = []
+    delay_by_scene: dict[str, float] = {}
+
+    for scene in scenes:
+        if not is_silent_scene(scene):
+            orig = remaining.pop(0) if remaining else SceneTiming(scene.id, cursor, cursor + 0.4)
+            visual_start = orig.start_seconds + delay
+            if visual_start < cursor - 1e-9:
+                extra = cursor - visual_start
+                insertions.append((orig.start_seconds, extra))
+                delay += extra
+                visual_start = cursor
+            visual_end = orig.end_seconds + delay
+            if visual_start > cursor + 1e-9 and scene_timings:
+                prev = scene_timings[-1]
+                scene_timings[-1] = SceneTiming(prev.scene_id, prev.start_seconds, visual_start)
+            elif visual_start > cursor + 1e-9:
+                visual_start = cursor
+                visual_end = max(visual_end, visual_start + orig.duration_seconds)
+            delay_by_scene[scene.id] = delay
+            scene_timings.append(SceneTiming(scene.id, visual_start, max(visual_end, visual_start)))
+            cursor = scene_timings[-1].end_seconds
+            continue
+
+        hold = max(planned_hold_seconds(scene), 0.0)
+        scene_timings.append(SceneTiming(scene.id, cursor, cursor + hold))
+        cursor += hold
+
+    shifted_words = [
+        WordTiming(
+            word=item.word,
+            start_seconds=item.start_seconds + delay_by_scene.get(item.scene_id or "", 0.0),
+            end_seconds=item.end_seconds + delay_by_scene.get(item.scene_id or "", 0.0),
+            scene_id=item.scene_id,
+        )
+        for item in words
+    ]
+    merged: dict[float, float] = {}
+    for at, dur in insertions:
+        if dur <= 1e-9:
+            continue
+        key = round(at, 4)
+        merged[key] = merged.get(key, 0.0) + dur
+    return TimingDocument(
+        provider=provider,
+        total_duration_seconds=cursor if cursor > 0 else 0.0,
+        scenes=scene_timings,
+        words=shifted_words,
+        layout=TIMING_LAYOUT,
+        audio_silence_insertions=sorted(merged.items()),
+    )
+
+
+def ensure_unspoken_hold_layout(scenes: list[Scene], timing: TimingDocument) -> TimingDocument:
+    """Rebuild hold layout from source-audio spoken times when cached timing is stale."""
+
+    if timing.layout == TIMING_LAYOUT:
+        return timing
+    spoken_ids = {scene.id for scene in scenes if not is_silent_scene(scene)}
+    spoken_audio = [item for item in timing.scenes if item.scene_id in spoken_ids]
+    spoken_words = [item for item in timing.words if item.scene_id in spoken_ids]
+    return layout_program_timeline(scenes, spoken_audio, spoken_words, provider=timing.provider)
+
+
+def _source_insertions_for_program_holds(
+    scenes: list[Scene], scene_timings: list[SceneTiming]
+) -> list[tuple[float, float]]:
+    """Map program-clock holds back onto spoken-only source audio."""
+
+    by_id = {item.scene_id: item for item in scene_timings}
+    insertions: list[tuple[float, float]] = []
+    hold_accum = 0.0
+    for scene in scenes:
+        item = by_id.get(scene.id)
+        if item is None or not is_silent_scene(scene):
+            continue
+        duration = item.duration_seconds
+        if duration <= 1e-9:
+            continue
+        insertions.append((max(0.0, item.start_seconds - hold_accum), duration))
+        hold_accum += duration
+    return insertions
 
 
 def timing_from_character_alignment(
@@ -126,8 +244,8 @@ def timing_from_character_alignment(
 ) -> TimingDocument:
     """Map ElevenLabs-style character alignment onto scene paragraphs.
 
-    Spoken scenes consume spoken paragraphs. Unspoken hold shots occupy the
-    pause between surrounding spoken scenes (or ``hold_seconds`` if no gap).
+    Spoken scenes consume spoken paragraphs in the source-audio clock.
+    Unspoken shots then get their planned hold duration on the program clock.
     """
 
     from biscuit.ssml import spoken_fingerprint
@@ -155,33 +273,7 @@ def timing_from_character_alignment(
         spoken_timings.append(SceneTiming(scene.id, start_seconds, max(end_seconds, start_seconds)))
         words.extend(_words_from_alignment_span(text, scene.id, start, characters, start_times, end_times))
 
-    scene_timings: list[SceneTiming] = []
-    last_end = 0.0
-    remaining_spoken = list(spoken_timings)
-    for scene in scenes:
-        if scene.narration.strip():
-            item = remaining_spoken.pop(0) if remaining_spoken else SceneTiming(scene.id, last_end, last_end + 0.4)
-            if item.start_seconds < last_end:
-                item = SceneTiming(item.scene_id, last_end, max(item.end_seconds, last_end + 0.2))
-            scene_timings.append(item)
-            last_end = item.end_seconds
-            continue
-        hold = scene.target_duration_seconds or scene.hold_seconds or scene.break_after_seconds or 2.5
-        next_start = remaining_spoken[0].start_seconds if remaining_spoken else last_end + hold
-        gap = max(next_start - last_end, 0.0)
-        duration = gap if gap >= 0.35 else hold
-        end = last_end + duration
-        if remaining_spoken and end > remaining_spoken[0].start_seconds:
-            # The pause is already in the next spoken start; use the gap only.
-            end = max(last_end + 0.2, remaining_spoken[0].start_seconds)
-        scene_timings.append(SceneTiming(scene.id, last_end, end))
-        last_end = end
-
-    total = end_times[-1] if end_times else (scene_timings[-1].end_seconds if scene_timings else 0.0)
-    if scene_timings:
-        last = scene_timings[-1]
-        scene_timings[-1] = SceneTiming(last.scene_id, last.start_seconds, max(last.end_seconds, total))
-    return TimingDocument(provider=provider, total_duration_seconds=max(total, last_end), scenes=scene_timings, words=words)
+    return layout_program_timeline(scenes, spoken_timings, words, provider=provider)
 
 
 def apply_timing_to_scenes(scenes: list[Scene], timing: TimingDocument) -> None:

@@ -54,6 +54,12 @@ class ArtifactStore:
         return self.root / "narration_timing.json"
 
     @property
+    def source_narration_path(self) -> Path:
+        """Unpadded TTS audio. ``narration.mp3`` may have silence inserted for visual holds."""
+
+        return self.work_dir / "narration.source.mp3"
+
+    @property
     def image_prompts_dir(self) -> Path:
         return self.root / "image_prompts"
 
