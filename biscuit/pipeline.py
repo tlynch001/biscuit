@@ -17,7 +17,7 @@ from biscuit.artifacts import ArtifactStore, new_run_id
 from biscuit.config import AppConfig
 from biscuit.exceptions import ArtifactError, ConfigurationError, ImageGenerationError
 from biscuit.hashing import sha256_file, sha256_json
-from biscuit.models import Character, Scene, StoryManifest, StorySpec, join_script
+from biscuit.models import Character, CharacterReference, Scene, StoryManifest, StorySpec, join_script
 from biscuit.performance import join_performance_script
 from biscuit.prompts import apply_prompts
 from biscuit.providers.base import ImageRequest, NarrationRequest
@@ -390,6 +390,9 @@ class StoryPipeline:
                     )
                 else:
                     references = [ref for character in present for ref in character.references]
+                    shot_ref = self._shot_reference(scene, manifest, store)
+                    if shot_ref is not None:
+                        references = [shot_ref, *references]
                     try:
                         self._image_provider.generate(
                             ImageRequest(
@@ -462,6 +465,24 @@ class StoryPipeline:
             return None
         return path
 
+    def _shot_reference(
+        self,
+        scene: Scene,
+        manifest: StoryManifest,
+        store: ArtifactStore,
+    ) -> CharacterReference | None:
+        """Optional previously generated still used as a continuity reference."""
+
+        if not scene.reference_shot_id:
+            return None
+        source = next((item for item in manifest.scenes if item.shot_id == scene.reference_shot_id), None)
+        if source is None or source.index == scene.index:
+            return None
+        path = store.scene_image_path(source.index)
+        if not path.exists() or not path.is_file():
+            return None
+        return CharacterReference(path=path, kind="shot_continuity")
+
     def _resolve_stamp_provider(
         self,
         stamp: dict[str, str | None],
@@ -515,6 +536,8 @@ class StoryPipeline:
                 else:
                     entry["sha256"] = None
                 references.append(entry)
+        if scene.reference_shot_id:
+            references.append({"shot_id": scene.reference_shot_id, "kind": "shot_continuity"})
         payload: dict[str, object] = {
             "prompt": scene.image_prompt.strip(),
             "visual": scene.visual_description.strip(),

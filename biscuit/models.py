@@ -321,6 +321,11 @@ class Scene:
     reference_shot_id: str = ""
     shot_description: str = ""
     continuity: dict[str, Any] = field(default_factory=dict)
+    visible_entities: list[str] = field(default_factory=list)
+    entity_identity: list[str] = field(default_factory=list)
+    unspoken: bool = False
+    travel_path: list[str] = field(default_factory=list)
+    hold_seconds: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -361,6 +366,11 @@ class Scene:
             "reference_shot_id": self.reference_shot_id,
             "shot_description": self.shot_description,
             "continuity": dict(self.continuity),
+            "visible_entities": list(self.visible_entities),
+            "entity_identity": list(self.entity_identity),
+            "unspoken": self.unspoken,
+            "travel_path": list(self.travel_path),
+            "hold_seconds": self.hold_seconds,
         }
 
     @classmethod
@@ -398,6 +408,11 @@ class Scene:
             reference_shot_id=str(data.get("reference_shot_id", "")),
             shot_description=str(data.get("shot_description", "")),
             continuity=dict(data.get("continuity") or {}) if isinstance(data.get("continuity"), dict) else {},
+            visible_entities=_as_str_list(data.get("visible_entities")),
+            entity_identity=_as_str_list(data.get("entity_identity")),
+            unspoken=bool(data.get("unspoken", False)),
+            travel_path=_as_str_list(data.get("travel_path")),
+            hold_seconds=float(data.get("hold_seconds") or 0.0),
         )
 
 

@@ -70,9 +70,14 @@ def test_red_mitten_visual_plan_preserves_literary_script(repo_root: Path) -> No
     assert PLANNER_VERSION.startswith("cinematic-sequences")
     unique = [scene for scene in manifest.scenes if not scene.reuse_shot_id]
     reused = [scene for scene in manifest.scenes if scene.reuse_shot_id]
+    unspoken = [scene for scene in manifest.scenes if scene.unspoken]
     assert 8 <= len({scene.sequence_id for scene in manifest.scenes}) <= 10
-    assert 18 <= len(unique) <= 25
+    assert 22 <= len(unique) <= 28
+    assert 3 <= len(unspoken) <= 6
     assert len(manifest.scenes) == len(unique) + len(reused)
+    assert {"lead_across_field", "approach_creek_woods", "arrive_remote_culvert", "rescue_return_field"} <= {
+        scene.shot_id for scene in unspoken
+    }
     spoken = " ".join(scene.narration for scene in manifest.scenes)
     assert spoken_fingerprint(spoken) == spoken_fingerprint(literary)
     performance = join_performance_script(manifest.scenes)
@@ -109,6 +114,22 @@ def test_red_mitten_prompts_are_local_and_timed(repo_root: Path) -> None:
     for leaked in ("sedan", "snowplow", "culvert", "woman", "road"):
         assert leaked not in field.local_prompt.lower()
 
+    for shot_id in ("leading_at_road", "driver_down_bank", "lead_across_field"):
+        prompt = by_id[shot_id].local_prompt.lower()
+        assert "culvert" not in prompt
+    assert "snowplow" not in by_id["driver_down_bank"].local_prompt.lower()
+    assert "snowplow" not in by_id["lead_across_field"].local_prompt.lower()
+    assert "snowplow" not in by_id["approach_creek_woods"].local_prompt.lower()
+    assert "snowplow" not in by_id["arrive_remote_culvert"].local_prompt.lower()
+    assert "culvert" not in by_id["rescue_return_field"].local_prompt.lower()
+
+    sedan_prompt = by_id["sedan_in_ditch"].local_prompt.lower()
+    assert "brown-tan" in sedan_prompt or "brown" in sedan_prompt
+    assert "four-door" in sedan_prompt
+    later_sedan = build_image_prompt(by_id["return_to_sedan"], characters=characters, spec=spec).lower()
+    assert "brown-tan" in later_sedan or "brown" in later_sedan
+    assert "hanging open" in later_sedan or "door hanging" in by_id["return_to_sedan"].local_prompt.lower()
+
     discovery = by_id["culvert_discovery"]
     discovery_prompt = build_image_prompt(discovery, characters=characters, spec=spec)
     assert "woman" in discovery_prompt.lower()
@@ -141,9 +162,13 @@ def test_red_mitten_prompts_are_local_and_timed(repo_root: Path) -> None:
     plan = plan_to_dict(manifest)
     assert plan["visual_bible"]
     assert plan["sequences"]
+    assert plan["world"]["journeys"]["outbound"][0] == "empty_road"
+    assert plan["world"]["journeys"]["outbound"][-1] == "culvert_interior"
+    assert plan["journeys"]["rescue"][0] == "sedan_ditch"
     assert plan["shots"][0]["critic"]["status"] == "not_implemented"
     assert all(shot["location_id"] for shot in plan["shots"])
     assert all(shot["local_prompt"] for shot in plan["shots"])
+    assert any(shot["unspoken"] for shot in plan["shots"])
 
 
 def test_pipeline_writes_performance_script(mini_story_path, test_config) -> None:

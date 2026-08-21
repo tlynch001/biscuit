@@ -8,10 +8,10 @@ from PIL import Image
 
 from biscuit.config import ImageConfig, XAIImageConfig, load_config
 from biscuit.exceptions import ConfigurationError, ImageGenerationError
-from biscuit.models import Character, Scene
+from biscuit.models import Character, CharacterReference, Scene
 from biscuit.providers.base import ImageRequest
 from biscuit.providers.image_openai import OpenAIImageProvider
-from biscuit.providers.image_xai import XAIImageProvider
+from biscuit.providers.image_xai import XAIImageProvider, xai_model_supports_image_edits
 from biscuit.providers.registry import image_registry, load_builtin_providers
 from biscuit.pipeline import StoryPipeline
 
@@ -306,3 +306,69 @@ def test_xai_inline_api_key_rejected(tmp_path: Path) -> None:
     path.write_text("image:\n  xai:\n    api_key: xai-this-should-never-be-here\n", encoding="utf-8")
     with pytest.raises(ConfigurationError, match="secret"):
         load_config(path)
+
+
+def test_xai_model_edit_support_is_prefix_based() -> None:
+    assert xai_model_supports_image_edits("grok-imagine-image-2.0")
+    assert xai_model_supports_image_edits("grok-imagine-image-2")
+    assert not xai_model_supports_image_edits("grok-imagine-image-quality")
+    assert not xai_model_supports_image_edits("grok-imagine-image")
+
+
+def test_quality_model_ignores_shot_continuity_references(
+    xai_provider: XAIImageProvider, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    request, output = _request(tmp_path)
+    ref = tmp_path / "sedan_in_ditch.png"
+    ref.write_bytes(_TINY_PNG)
+    request.references = [CharacterReference(path=ref, kind="shot_continuity")]
+    called: dict = {}
+
+    def fake_post(url, **kwargs):
+        called["url"] = url
+        called["json"] = kwargs.get("json")
+        return _FakeResponse(200, _success_payload())
+
+    monkeypatch.setattr("requests.post", fake_post)
+    with caplog.at_level("INFO"):
+        xai_provider.generate(request, output)
+
+    assert called["url"] == "https://api.x.ai/v1/images/generations"
+    assert "image" not in called["json"]
+    assert "ignoring 1 reference file" in caplog.text
+
+
+def test_imagine_2_posts_edits_with_data_uri(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("TEST_XAI_KEY", "xai-test-not-real")
+    monkeypatch.setattr("biscuit.providers.image_xai.time.sleep", lambda *_args, **_kwargs: None)
+    provider = XAIImageProvider(
+        xai=XAIImageConfig(
+            api_key_env="TEST_XAI_KEY",
+            model="grok-imagine-image-2.0",
+            aspect_ratio="16:9",
+            resolution="2k",
+            max_retries=0,
+        )
+    )
+    request, output = _request(tmp_path)
+    ref = tmp_path / "culvert_mouth.png"
+    Image.new("RGB", (64, 36), (40, 40, 40)).save(ref)
+    request.references = [CharacterReference(path=ref, kind="shot_continuity")]
+    called: dict = {}
+
+    def fake_post(url, **kwargs):
+        called["url"] = url
+        called["json"] = kwargs.get("json")
+        return _FakeResponse(200, _success_payload())
+
+    monkeypatch.setattr("requests.post", fake_post)
+    provider.generate(request, output)
+
+    assert called["url"] == "https://api.x.ai/v1/images/edits"
+    image = called["json"]["image"]
+    assert image["type"] == "image_url"
+    assert image["url"].startswith("data:image/png;base64,")
+    assert called["json"]["model"] == "grok-imagine-image-2.0"
+    assert called["json"]["prompt"] == "exact biscuit prompt that must be sent"

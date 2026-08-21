@@ -381,14 +381,25 @@ output/<story_id>/
 
 `script.txt` is the literary narration. `performance.txt` is what ElevenLabs
 Multilingual v2 receives: the same spoken words with inferred (or directed)
-`<break time="Ns" />` pauses. `visual_plan.json` is the director's inspectable
-shot list. Episode Two (`biscuit_and_the_red_mitten.yaml`) expands into a
-small number of location-aware cinematic shots (about 20 unique stills), not
-one image per sentence. Other stories stay one scene per authored beat but
-still get a performance script.
+`<break time="Ns" />` pauses. Unspoken geography holds appear as break-only
+paragraphs in `performance.txt`; they do not add spoken words. `visual_plan.json`
+is the director's inspectable shot list. Episode Two
+(`biscuit_and_the_red_mitten.yaml`) expands into a small number of
+location-aware cinematic shots (about two dozen unique stills), not one image
+per sentence. The director keeps an explicit location topology, persistent
+entity identities, and implied travel shots when narration skips a crossing.
+Other stories stay one scene per authored beat but still get a performance
+script.
 
 Image prompts for planned shots describe only the current frame. Global story
-state stays in the director; it is not dumped into every prompt.
+state stays in the director; it is not dumped into every prompt. Recurring
+objects inherit a canonical identity (the same brown-tan sedan, not "an
+abandoned car"). Optional `reference_shot_id` values are passed to image
+providers as `CharacterReference(kind="shot_continuity")` when the prior PNG
+exists. xAI's default `grok-imagine-image-quality` model has no documented
+image-edit API, so those references are ignored there; `grok-imagine-image-2.x`
+can use `POST /v1/images/edits`. Continuity for the default model is textual
+and topological.
 
 Inspect the Red Mitten plan in development before spending image credits:
 
@@ -459,9 +470,11 @@ Image requests include:
 If those reference files exist on disk, the OpenAI provider switches to
 `/v1/images/edits` so they can be used as identity references. That
 multipart protocol stays inside `biscuit/providers/image_openai.py`. The
-character library currently ships `references: []`; without files, the
-provider uses strong structured prompts only. GPT Image does not guarantee
-character identity across scenes.
+xAI provider uses JSON `POST /v1/images/edits` only when the configured
+model is a documented Imagine 2.x edit model; `grok-imagine-image-quality`
+stays on `/v1/images/generations`. The character library currently ships
+`references: []`; without files, providers use strong structured prompts.
+GPT Image does not guarantee character identity across scenes.
 
 ElevenLabs support is implemented against the `text-to-speech/{id}/with-timestamps`
 endpoint. The **performance** script (`performance.txt`) is sent when
@@ -500,7 +513,7 @@ at `secrets/youtube_client_secret.json`, run once interactively to cache
 - Development/ElevenLabs narration (`eleven_multilingual_v2`)
 - Narration-driven scene timing
 - FFmpeg assembly with restrained, duration-scaled Ken Burns motion, fades, and a configurable end hold / fade-to-black
-- Cinematic visual plans (`visual_plan.json`) with local shot prompts and location continuity
+- Cinematic visual plans (`visual_plan.json`) with local shot prompts, location topology, persistent entities, and implied travel shots
 - Thumbnail, title, description
 - Optional YouTube uploader behind `enabled: false`
 - Resumable stages, image hash cache, `--regenerate-image N`

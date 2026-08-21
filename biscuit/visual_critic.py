@@ -21,7 +21,10 @@ def critic_record(scene: Scene) -> dict[str, Any]:
         "reason": "No reliable generated-image inspection in the current pipeline.",
         "intended_location_id": scene.location_id or None,
         "visible_elements": list(scene.visible_elements),
+        "visible_entities": list(scene.visible_entities),
         "forbidden_elements": list(scene.forbidden_elements),
+        "travel_path": list(scene.travel_path) or None,
+        "unspoken": scene.unspoken,
         "questions": [
             "Is this actually the intended location?",
             "Are forbidden or premature story elements visible?",
