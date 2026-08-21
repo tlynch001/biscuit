@@ -1,1 +1,1 @@
-"""Registered story visual-beat plans."""
+"""Registered story cinematic visual plans."""

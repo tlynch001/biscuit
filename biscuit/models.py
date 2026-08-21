@@ -313,6 +313,14 @@ class Scene:
     shot_id: str = ""
     reuse_shot_id: str = ""
     world_facts: list[str] = field(default_factory=list)
+    sequence_id: str = ""
+    location_id: str = ""
+    local_prompt: str = ""
+    visible_elements: list[str] = field(default_factory=list)
+    forbidden_elements: list[str] = field(default_factory=list)
+    reference_shot_id: str = ""
+    shot_description: str = ""
+    continuity: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -345,6 +353,14 @@ class Scene:
             "shot_id": self.shot_id,
             "reuse_shot_id": self.reuse_shot_id,
             "world_facts": list(self.world_facts),
+            "sequence_id": self.sequence_id,
+            "location_id": self.location_id,
+            "local_prompt": self.local_prompt,
+            "visible_elements": list(self.visible_elements),
+            "forbidden_elements": list(self.forbidden_elements),
+            "reference_shot_id": self.reference_shot_id,
+            "shot_description": self.shot_description,
+            "continuity": dict(self.continuity),
         }
 
     @classmethod
@@ -374,6 +390,14 @@ class Scene:
             shot_id=str(data.get("shot_id", "")),
             reuse_shot_id=str(data.get("reuse_shot_id", "")),
             world_facts=_as_str_list(data.get("world_facts")),
+            sequence_id=str(data.get("sequence_id", "")),
+            location_id=str(data.get("location_id", "")),
+            local_prompt=str(data.get("local_prompt", "")),
+            visible_elements=_as_str_list(data.get("visible_elements")),
+            forbidden_elements=_as_str_list(data.get("forbidden_elements")),
+            reference_shot_id=str(data.get("reference_shot_id", "")),
+            shot_description=str(data.get("shot_description", "")),
+            continuity=dict(data.get("continuity") or {}) if isinstance(data.get("continuity"), dict) else {},
         )
 
 

@@ -525,7 +525,10 @@ class StoryPipeline:
             "quality": openai.quality if provider_name == "openai" else None,
             "shot_id": scene.shot_id or None,
             "reuse_shot_id": scene.reuse_shot_id or None,
-            "world_facts": list(scene.world_facts),
+            "sequence_id": scene.sequence_id or None,
+            "location_id": scene.location_id or None,
+            "local_prompt": scene.local_prompt.strip() or None,
+            "reference_shot_id": scene.reference_shot_id or None,
             "references": references,
         }
         if provider_name == "xai":
@@ -653,7 +656,7 @@ class StoryPipeline:
             self._config.youtube.enabled,
         )
         if plan_for_story(spec.id):
-            logger.info("Visual-beat plan enabled for %s (planner %s)", spec.id, PLANNER_VERSION)
+            logger.info("Cinematic visual plan enabled for %s (planner %s)", spec.id, PLANNER_VERSION)
         if regenerate_images:
             logger.info("Regenerate image scenes: %s", regenerate_images)
         for beat in spec.beats:

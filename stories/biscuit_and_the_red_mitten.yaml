@@ -8,12 +8,11 @@ setting:
   era: contemporary rural Midwest
   time_of_day: iron afternoon thinning toward a white dusk
   notes: >
-    No town square. Fence wire, a ditch, a stalled sedan, a concrete culvert
-    where a creek passes under the road. Distant grain bins. Later, a snowplow's
-    amber light. Do not add readable signs, plates, or lettering.
+    Isolated rural Midwest winter. Fence wire, open fields, overcast iron light.
+    Do not add readable signs, plates, or lettering.
 visual_style:
   medium: cinematic still photograph, wide, documentary grain
-  lighting: flat overcast winter light dying to blue dusk, then a single amber plow lamp
+  lighting: flat overcast winter light dying to blue dusk
   color: bone, iron, rust, and soot; two reds only — Biscuit's faded bandana and a brighter child's mitten
   camera: 16:9 landscape still, more country than close-up, restrained, no handheld chaos
   extra: elemental, isolated, unsentimental light; mercy is small in the frame

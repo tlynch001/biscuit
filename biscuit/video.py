@@ -5,10 +5,10 @@ Scene durations come from narration timing. Images get a slow zoom or pan
 configurable assembler — not a general effects engine.
 
 Crop x/y in FFmpeg are integer pixels. Animating a 1920×1080 crop on a
-~1.16× canvas moves well under one output pixel per frame, which quantizes
-into a visible staircase (left, then down, then left…). Motion is therefore
-evaluated in an oversampled coordinate space and lanczos-downscaled to the
-output size so 30 fps pans stay diagonal and smooth.
+small oversize canvas moves well under one output pixel per frame, which
+quantizes into a visible staircase (left, then down, then left…). Motion is
+therefore evaluated in an oversampled coordinate space and lanczos-downscaled
+to the output size so 30 fps pans stay diagonal and smooth.
 """
 
 from __future__ import annotations
@@ -28,9 +28,12 @@ logger = logging.getLogger(__name__)
 _MIN_SECONDS = 0.2
 
 # Bump when the filter graph strategy changes so assemble cache invalidates.
-MOTION_FILTER_VERSION = "oversample-4x-v1"
+MOTION_FILTER_VERSION = "restrained-travel-v2"
 MOTION_OVERSAMPLE = 4
-MOTION_HEADROOM = 1.16
+MOTION_HEADROOM = 1.05
+# Full Ken Burns travel is paced over this many seconds. Shorter clips use a
+# fraction of the headroom so a 3s hold does not race across the frame.
+MOTION_FULL_TRAVEL_SECONDS = 24.0
 
 # Bump when outro construction changes independently of the Ken Burns filter.
 OUTRO_VERSION = "hold-fade-black-v1"
@@ -149,9 +152,8 @@ def oversampled_motion_sizes(width: int, height: int) -> tuple[int, int, int, in
 
     The source is scaled to a larger canvas (oversample × headroom), a crop
     window the size of ``oversample × output`` travels across it, then the
-    crop is lanczos-downscaled to ``width×height``. Travel distance in
-    *output* pixels is unchanged from the old 1.16× crop; only the
-    coordinate resolution increases.
+    crop is lanczos-downscaled to ``width×height``. Travel is duration-scaled
+    so short clips stay nearly still.
     """
 
     width, height = _even(width), _even(height)
@@ -160,6 +162,20 @@ def oversampled_motion_sizes(width: int, height: int) -> tuple[int, int, int, in
     scaled_w = _even(int(round(crop_w * MOTION_HEADROOM)))
     scaled_h = _even(int(round(crop_h * MOTION_HEADROOM)))
     return scaled_w, scaled_h, crop_w, crop_h
+
+
+def motion_travel_fraction(duration: float) -> float:
+    """How much of the available Ken Burns travel a clip should use."""
+
+    if duration <= 0 or MOTION_FULL_TRAVEL_SECONDS <= 0:
+        return 0.0
+    return min(duration / MOTION_FULL_TRAVEL_SECONDS, 1.0)
+
+
+def _lerp_expr(start: float, end: float, last: int) -> str:
+    if abs(end - start) < 0.5:
+        return f"{start:.2f}"
+    return f"{start:.2f}+({end:.2f}-{start:.2f})*n/{last}"
 
 
 def _motion_filter(
@@ -192,23 +208,32 @@ def _motion_filter(
     fade_out_start = max(duration - fade_out, 0.0)
     frames = max(int(round(duration * config.fps)), 1)
     last = max(frames - 1, 1)
+    travel = 0.0 if motion in {"none", "static"} else motion_travel_fraction(duration)
+    center_x = max_x / 2.0
+    center_y = max_y / 2.0
 
-    if motion == "pan_right":
-        x = f"min({max_x}*n/{last}\\,{max_x})"
-        y = str(max_y // 2)
+    if motion in {"none", "static"}:
+        x = f"{center_x:.2f}"
+        y = f"{center_y:.2f}"
+    elif motion == "pan_right":
+        x = _lerp_expr(center_x - (max_x * travel) / 2.0, center_x + (max_x * travel) / 2.0, last)
+        y = f"{center_y:.2f}"
     elif motion == "pan_left":
-        x = f"max({max_x}*(1-n/{last})\\,0)"
-        y = str(max_y // 2)
+        x = _lerp_expr(center_x + (max_x * travel) / 2.0, center_x - (max_x * travel) / 2.0, last)
+        y = f"{center_y:.2f}"
     elif motion == "slow_zoom_out":
-        x = f"min({max_x}*n/{last}\\,{max_x})"
-        y = f"min({max_y}*n/{last}\\,{max_y})"
-    elif motion in {"none", "static"}:
-        x = str(max_x // 2)
-        y = str(max_y // 2)
+        start_x = center_x * (1.0 - travel)
+        start_y = center_y * (1.0 - travel)
+        x = _lerp_expr(start_x, start_x + max_x * travel, last)
+        y = _lerp_expr(start_y, start_y + max_y * travel, last)
     else:
-        # slow_zoom_in: drift toward the upper-right of the oversized frame
-        x = f"max({max_x}*(1-n/{last})\\,0)"
-        y = f"max({max_y}*(1-n/{last}*0.55)\\,0)"
+        # slow_zoom_in: a short drift from slightly high-right toward center-left.
+        start_x = center_x * (1.0 - travel) + max_x * travel
+        end_x = center_x * (1.0 - travel)
+        start_y = center_y * (1.0 - travel) + max_y * travel * 0.55
+        end_y = center_y * (1.0 - travel)
+        x = _lerp_expr(start_x, end_x, last)
+        y = _lerp_expr(start_y, end_y, last)
 
     parts = [
         f"scale={scaled_w}:{scaled_h}:flags=lanczos",
