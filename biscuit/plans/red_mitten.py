@@ -1,8 +1,11 @@
-"""Hand-directed visual beats and pauses for Biscuit and the Red Mitten.
+"""Cinematic visual director for Biscuit and the Red Mitten.
 
 Spoken strings are slices of the authored beat narration. Concatenating
-``spoken`` within a beat must reproduce that beat's literary text exactly
+``spoken`` across the plan must reproduce the literary text exactly
 (whitespace-normalized). This file does not rewrite the story.
+
+The director knows the whole film. Each image prompt describes only what
+belongs in the current frame.
 """
 
 from __future__ import annotations
@@ -11,895 +14,798 @@ from typing import Any
 
 PLANNER_ID = "biscuit_and_the_red_mitten"
 
-BASE_FACTS = [
-    "contemporary rural Midwest; two-lane county blacktop through open farm country",
-    "incoming blizzard; wind over frozen fields; overcast iron afternoon thinning toward white dusk",
-    "snow filling tracks as they are made",
-    "no town square; no houses near enough to matter unless a shot is inside the culvert or at distant grain bins",
-    "no cars on the roadway; the only car in this story is a stalled sedan in the ditch, never driving, never parked on the pavement",
-    "no incidental people, animals, or traffic; only characters named for this shot",
-    "Biscuit is a small cream-gold retriever mix with a faded red bandana; ordinary dog; never wearing clothes",
-    "two reds only: Biscuit's faded bandana and a child's brighter red mitten, when present",
-    "no readable signs, plates, lettering, captions, or watermarks",
+BISCUIT = (
+    "a small cream-gold retriever mix with russet ears, slightly scruffy winter fur, "
+    "and a faded red cloth bandana knotted at the throat"
+)
+
+VISUAL_BIBLE: dict[str, str] = {
+    "biscuit": (
+        f"Biscuit is {BISCUIT}. Ordinary dog, never clothed. Same animal in every frame: "
+        "cream-gold coat, russet ears, nick in the left ear, faded red bandana — not a collar tag."
+    ),
+    "empty_road": (
+        "Isolated two-lane county blacktop through open Midwest farm country in deep winter. "
+        "Packed snow on pavement and shoulders. Fence. Field. Fence. Iron-gray overcast sky. "
+        "Ice on the wire. No town. Distant grain bins only if they stay tiny on the horizon."
+    ),
+    "sedan_ditch": (
+        "A rusted sedan nosed down in the snow-filled ditch beside the blacktop, never on the "
+        "pavement, never driving. Passenger door hanging open. Snow on the seats. The car is a "
+        "left-behind object, not traffic."
+    ),
+    "open_field": (
+        "Open snow-covered field leaving the road behind. Deep crust. Sparse fence far to one side. "
+        "A distant dark treeline. Heavy sky. Wind writing over the white. Empty of buildings."
+    ),
+    "creek_woods": (
+        "Darker, more enclosed winter landscape. Frozen creek, ice at the edges, a crack of black "
+        "water. Bare trees closing in. Dying flat light. Remote from the road."
+    ),
+    "culvert_mouth": (
+        "Weathered concrete culvert where the creek disappears. Gray wet throat. Low. Dim. "
+        "The road above is not part of this frame."
+    ),
+    "culvert_interior": (
+        "Enclosed wet concrete pipe. Sweating walls. Almost no light. Sound of water ticking. "
+        "No sky, no road, no vehicles."
+    ),
+    "woman": (
+        "Young mother, early thirties, slight and spent. Thin gray cloth coat, wet jeans, indoor "
+        "shoes packed with snow. Dark hair iced at the temples. No gloves."
+    ),
+    "child": (
+        "About four. Navy snowsuit, dark curls in the hood, plastic cup clipped to the suit. "
+        "One brighter red child's mitten; the other hand may be bare until the mitten is returned."
+    ),
+    "snowplow": (
+        "Tired orange municipal snowplow, blade down, amber hazard lights. It enters the visual "
+        "story only at the distant-amber reveal, never before."
+    ),
+    "driver": (
+        "Older man, early sixties, solid. Canvas chore coat, orange vest, heavy gloves, wool cap, "
+        "gray mustache with ice in it. He appears only with the plow."
+    ),
+}
+
+SEQUENCES: list[dict[str, Any]] = [
+    {
+        "id": "empty_road",
+        "title": "Empty road",
+        "location_id": "empty_road",
+        "summary": "Establish the isolated winter road. Biscuit arrives alone.",
+    },
+    {
+        "id": "abandoned_sedan",
+        "title": "Abandoned sedan",
+        "location_id": "sedan_ditch",
+        "summary": "The car is discovered in the ditch. The mitten is found here.",
+    },
+    {
+        "id": "field_trail",
+        "title": "Field / trail",
+        "location_id": "open_field",
+        "summary": "Biscuit leaves the road and crosses open country toward the trees.",
+    },
+    {
+        "id": "creek_woods",
+        "title": "Creek / woods",
+        "location_id": "creek_woods",
+        "summary": "The country closes in. Ice, black water, darker trees.",
+    },
+    {
+        "id": "culvert",
+        "title": "Culvert",
+        "location_id": "culvert_interior",
+        "summary": "He enters the concrete throat and finds the woman and child.",
+    },
+    {
+        "id": "return_to_road",
+        "title": "Return to road",
+        "location_id": "sedan_ditch",
+        "summary": "He leaves them and climbs back to the established road and sedan.",
+    },
+    {
+        "id": "snowplow_rescue",
+        "title": "Snowplow arrival / rescue",
+        "location_id": "sedan_ditch",
+        "summary": "The plow appears for the first time. The driver follows Biscuit to the culvert.",
+    },
+    {
+        "id": "departure",
+        "title": "Departure / empty road",
+        "location_id": "empty_road",
+        "summary": "The plow leaves. Biscuit remains and goes on. The country empties.",
+    },
 ]
 
 
-def units() -> list[dict[str, Any]]:
-    """Return ordered visual beats covering every spoken word of Red Mitten."""
+def shots() -> list[dict[str, Any]]:
+    """Return ordered cinematic shots covering every spoken word of Red Mitten."""
 
     return [
-        # --- the_road ---
         {
-            "beat_id": "the_road",
             "id": "empty_road",
-            "spoken": "The road ran without a town to finish it.",
-            "break_after": 0.9,
-            "characters": [],
-            "motion": "slow_zoom_in",
-            "visual": (
-                "Wide empty two-lane county blacktop disappearing into blowing snow. "
-                "No cars, no people, no houses, no town. Fence posts far off. Iron-gray sky. "
-                "Packed snow on the shoulder. Documentary winter still."
-            ),
-        },
-        {
+            "sequence_id": "empty_road",
+            "location_id": "empty_road",
             "beat_id": "the_road",
-            "id": "fence_field_sky",
-            "spoken": "Fence. Field. A sky the color of wet iron.",
-            "ssml": 'Fence.<break time="0.28s" /> Field.<break time="0.4s" /> A sky the color of wet iron.',
+            "title": "A road without a town",
+            "emotion": "isolation",
+            "characters": [],
+            "motion": "static",
             "break_after": 0.7,
-            "characters": [],
-            "motion": "pan_right",
-            "visual": (
-                "Fence and a field going white under an iron-gray overcast sky. "
-                "No cars, no people, no houses. Wide country, not a close-up of Biscuit."
+            "reference_shot_id": "",
+            "shot_description": "Empty two-lane winter road. No dog, no car, no plow.",
+            "spoken": (
+                "The road ran without a town to finish it. Fence. Field. A sky the color of wet iron. "
+                "Ice stood on the wire in little teeth."
+            ),
+            "visible_elements": [
+                "two-lane county blacktop",
+                "packed snow",
+                "fence and wire",
+                "open field",
+                "iron-gray sky",
+            ],
+            "forbidden_elements": ["biscuit", "sedan", "snowplow", "people", "culvert", "mitten"],
+            "continuity": {
+                "geography": "isolated rural road",
+                "biscuit": "absent",
+                "mitten": "absent",
+                "sedan_revealed": False,
+                "people_revealed": False,
+                "plow_revealed": False,
+            },
+            "local_prompt": (
+                "Wide cinematic still photograph of an isolated two-lane county blacktop running "
+                "straight through deep winter farm country. Packed snow on the pavement and shoulders. "
+                "Wooden fence posts and wire receding along one side. A white field beyond. Ice standing "
+                "on the fence wire. Heavy iron-gray overcast sky. Empty landscape. Documentary grain. "
+                "Flat winter light."
             ),
         },
         {
+            "id": "biscuit_on_road",
+            "sequence_id": "empty_road",
+            "location_id": "empty_road",
             "beat_id": "the_road",
-            "id": "ice_wire",
-            "spoken": "Ice stood on the wire in little teeth.",
-            "break_after": 0.85,
-            "characters": [],
+            "title": "Along the packed shoulder",
+            "emotion": "isolation",
+            "characters": ["biscuit"],
             "motion": "slow_zoom_in",
-            "visual": (
-                "Close detail of ice standing on fence wire like little teeth. "
-                "No cars, no people, no houses. Flat winter light."
-            ),
-        },
-        {
-            "beat_id": "the_road",
-            "id": "biscuit_shoulder",
+            "break_after": 0.55,
+            "reference_shot_id": "empty_road",
+            "shot_description": "Biscuit alone on the established empty road.",
             "spoken": (
                 "Biscuit came along the packed shoulder, nose down, his faded red bandana "
-                "the only worn thing in all that new white."
+                "the only worn thing in all that new white. No cars. No houses near enough to matter. "
+                "The wind had a smell in it that did not belong to rabbits or diesel. He stopped. "
+                "He tasted the air again. Then he turned into it."
             ),
-            "break_after": 0.55,
-            "characters": ["biscuit"],
-            "motion": "pan_left",
-            "visual": (
-                "Biscuit alone on the packed snowy shoulder, nose down, faded red bandana. "
-                "Empty road beside him. No other animals, no people, no cars."
-            ),
-        },
-        {
-            "beat_id": "the_road",
-            "id": "no_cars_houses",
-            "spoken": "No cars. No houses near enough to matter.",
-            "ssml": 'No cars.<break time="0.4s" /> No houses near enough to matter.',
-            "break_after": 1.1,
-            "characters": [],
-            "motion": "slow_zoom_out",
-            "reuse": "empty_road",
-            "visual": (
-                "Hold the empty road: no cars on the pavement, no houses near enough to matter. "
-                "Do not invent traffic, driveways, or a town."
+            "visible_elements": ["biscuit", "empty road", "fence", "field", "iron sky"],
+            "forbidden_elements": ["sedan", "snowplow", "people", "culvert", "mitten"],
+            "continuity": {
+                "geography": "same empty road",
+                "biscuit": "on_shoulder",
+                "mitten": "absent",
+                "sedan_revealed": False,
+                "people_revealed": False,
+                "plow_revealed": False,
+            },
+            "local_prompt": (
+                f"Wide winter road still. {BISCUIT.capitalize()} walking alone along the packed "
+                "snowy shoulder of a two-lane county blacktop, nose down. Open farm country, fence and "
+                "field, iron-gray sky. Blowing snow. The road is otherwise empty."
             ),
         },
         {
-            "beat_id": "the_road",
-            "id": "wind_smell",
-            "spoken": "The wind had a smell in it that did not belong to rabbits or diesel.",
-            "break_after": 0.7,
-            "characters": ["biscuit"],
-            "motion": "pan_right",
-            "visual": (
-                "Biscuit small on the empty shoulder, wind moving snow across the field. "
-                "No cars, no people. The country is the subject."
-            ),
-        },
-        {
-            "beat_id": "the_road",
-            "id": "he_stopped",
-            "spoken": "He stopped.",
-            "break_after": 1.5,
-            "characters": ["biscuit"],
-            "motion": "static",
-            "visual": (
-                "Biscuit stopped on the packed shoulder of the empty road. Still. "
-                "No cars, no people. Simple composition: dog, snow, road."
-            ),
-        },
-        {
-            "beat_id": "the_road",
-            "id": "tasted_air",
-            "spoken": "He tasted the air again.",
-            "break_after": 0.85,
-            "characters": ["biscuit"],
-            "motion": "slow_zoom_in",
-            "visual": (
-                "Close still of Biscuit lifting his nose into the wind. Faded red bandana. "
-                "Empty winter country behind him. No cars, no people."
-            ),
-        },
-        {
-            "beat_id": "the_road",
-            "id": "turned_into_it",
-            "spoken": "Then he turned into it.",
-            "break_after": 1.0,
-            "characters": ["biscuit"],
-            "motion": "pan_left",
-            "visual": (
-                "Biscuit turning off the empty road into the field, away from the pavement. "
-                "No cars, no people."
-            ),
-        },
-        # --- the_car ---
-        {
-            "beat_id": "the_car",
             "id": "sedan_in_ditch",
-            "spoken": "A car sat in the ditch with its door hanging open.",
-            "break_after": 0.7,
-            "characters": [],
+            "sequence_id": "abandoned_sedan",
+            "location_id": "sedan_ditch",
+            "beat_id": "the_car",
+            "title": "The open door",
+            "emotion": "unease",
+            "characters": ["biscuit"],
+            "motion": "static",
+            "break_after": 0.55,
+            "reference_shot_id": "biscuit_on_road",
+            "shot_description": "Sedan physically off the roadway in the ditch. Biscuit small against it.",
+            "spoken": (
+                "A car sat in the ditch with its door hanging open. The wind moved the door and let it "
+                "fall back. Snow was already on the seats. A cup lay on its side on the floorboard. "
+                "The engine was dead. Biscuit stopped in the road. He went to the running board and "
+                "sniffed the wet rubber, the cloth, the cold metal. People had been here. The cloth "
+                "still held them, and was losing them."
+            ),
+            "visible_elements": ["sedan in ditch", "hanging passenger door", "biscuit", "winter road"],
+            "forbidden_elements": ["snowplow", "woman", "child", "culvert", "mitten"],
+            "continuity": {
+                "geography": "sedan off the roadway in the ditch beside the blacktop",
+                "biscuit": "at_sedan",
+                "mitten": "absent",
+                "sedan_revealed": True,
+                "people_revealed": False,
+                "plow_revealed": False,
+            },
+            "local_prompt": (
+                "Wide cinematic still of a rusted sedan nosed down in the snow-filled ditch beside a "
+                f"two-lane winter road, passenger door hanging open. Snow already on the seats. {BISCUIT} "
+                "small in the road near the car. Wind. Iron-gray sky. Documentary winter light."
+            ),
+        },
+        {
+            "id": "mitten_by_tire",
+            "sequence_id": "abandoned_sedan",
+            "location_id": "sedan_ditch",
+            "beat_id": "the_mitten",
+            "title": "A red thing in the white",
+            "emotion": "recognition",
+            "characters": ["biscuit"],
             "motion": "slow_zoom_in",
-            "facts_add": [
-                "a rusted sedan is nosed into the ditch with the passenger door hanging open; it is not on the roadway"
+            "break_after": 0.65,
+            "reference_shot_id": "sedan_in_ditch",
+            "shot_description": "Child's mitten discovered at the sedan's rear tire.",
+            "spoken": (
+                "Beside the tire, half in a drift, a child's mitten. Red. Brighter than his bandana. "
+                "He nosed it. Snow fell off the cuff. The lining still held a little heat, and a smell "
+                "of soap and skin. He picked it up. It was bigger in his mouth than it had looked on "
+                "the ground. He did not put it down."
+            ),
+            "visible_elements": ["red child's mitten", "rear tire", "biscuit", "sedan wheel well"],
+            "forbidden_elements": ["snowplow", "woman", "child", "culvert"],
+            "continuity": {
+                "geography": "same sedan in the ditch",
+                "biscuit": "at_rear_tire",
+                "mitten": "picked_up",
+                "sedan_revealed": True,
+                "people_revealed": False,
+                "plow_revealed": False,
+            },
+            "local_prompt": (
+                "Medium cinematic still at a rusted sedan's rear wheel in a snowy ditch. A child's "
+                f"bright red mitten half in a drift beside the tire. {BISCUIT} lowering his cream "
+                "muzzle toward the mitten, faded red bandana at his throat. Flat overcast winter light. "
+                "Documentary grain."
+            ),
+        },
+        {
+            "id": "leaving_the_road",
+            "sequence_id": "field_trail",
+            "location_id": "road_bank",
+            "beat_id": "the_tracks",
+            "title": "Off the blacktop",
+            "emotion": "urgency",
+            "characters": ["biscuit"],
+            "motion": "slow_zoom_out",
+            "break_after": 0.5,
+            "reference_shot_id": "sedan_in_ditch",
+            "shot_description": "Transition: Biscuit leaves the road for the field. Road and sedan fall to the margin.",
+            "spoken": (
+                "Prints left the road and climbed the bank. One large. One small, dragging at the heel. "
+                "They went into the field toward a line of trees that might have been a creek."
+            ),
+            "visible_elements": [
+                "biscuit with mitten",
+                "ditch bank",
+                "open field ahead",
+                "distant treeline",
+                "road and sedan at the edge of frame",
             ],
-            "visual": (
-                "A rusted sedan nosed into the snowy ditch, passenger door hanging open. "
-                "The roadway above it is empty — no other cars, no traffic. No people."
+            "forbidden_elements": ["snowplow", "woman", "child", "culvert"],
+            "continuity": {
+                "geography": "leaving road via ditch bank into the field",
+                "biscuit": "climbing_bank",
+                "mitten": "in_mouth",
+                "sedan_revealed": True,
+                "people_revealed": False,
+                "plow_revealed": False,
+            },
+            "local_prompt": (
+                "Wide still from a snowy ditch bank looking into an open field. "
+                f"{BISCUIT.capitalize()} climbing away from the roadway through deep snow, a bright red "
+                "child's mitten held in his mouth. A dark line of trees far ahead. Behind him, at the "
+                "edge of frame, the two-lane road and a sedan in the ditch are already falling away. "
+                "Blowing snow. Iron sky."
             ),
         },
         {
-            "beat_id": "the_car",
-            "id": "door_in_wind",
-            "spoken": "The wind moved the door and let it fall back.",
-            "break_after": 0.65,
-            "characters": [],
-            "motion": "pan_right",
-            "visual": (
-                "The hanging sedan door in the ditch, moved by wind. Empty road. No people. "
-                "The car remains in the ditch, not on the pavement."
-            ),
-        },
-        {
-            "beat_id": "the_car",
-            "id": "interior_dead",
-            "spoken": "Snow was already on the seats. A cup lay on its side on the floorboard. The engine was dead.",
-            "ssml": (
-                "Snow was already on the seats.<break time=\"0.4s\" /> "
-                "A cup lay on its side on the floorboard.<break time=\"0.55s\" /> "
-                "The engine was dead."
-            ),
-            "break_after": 0.8,
-            "characters": [],
-            "motion": "slow_zoom_in",
-            "visual": (
-                "Interior of the stalled sedan: snow on the seats, a cup on its side on the floorboard. "
-                "Empty child-seat shape, no lettering. No people in the car. Dead, cold interior."
-            ),
-        },
-        {
-            "beat_id": "the_car",
-            "id": "biscuit_in_road",
-            "spoken": "Biscuit stopped in the road.",
-            "break_after": 1.2,
+            "id": "field_crossing",
+            "sequence_id": "field_trail",
+            "location_id": "open_field",
+            "beat_id": "the_tracks",
+            "title": "Where the road-sound died",
+            "emotion": "endurance",
             "characters": ["biscuit"],
             "motion": "static",
-            "visual": (
-                "Biscuit stopped in the empty roadway, small, looking toward the sedan in the ditch. "
-                "No other cars. Door still hanging. No people."
-            ),
-        },
-        {
-            "beat_id": "the_car",
-            "id": "sniff_running_board",
-            "spoken": "He went to the running board and sniffed the wet rubber, the cloth, the cold metal.",
-            "break_after": 0.5,
-            "characters": ["biscuit"],
-            "motion": "slow_zoom_in",
-            "visual": (
-                "Biscuit at the sedan's running board in the ditch, sniffing wet rubber and cold metal. "
-                "Faded bandana. No people. Car still in the ditch."
-            ),
-        },
-        {
-            "beat_id": "the_car",
-            "id": "people_had_been",
-            "spoken": "People had been here. The cloth still held them, and was losing them.",
-            "ssml": (
-                "People had been here.<break time=\"0.9s\" /> "
-                "The cloth still held them, and was losing them."
-            ),
-            "break_after": 0.95,
-            "characters": ["biscuit"],
-            "motion": "slow_zoom_in",
-            "visual": (
-                "Close on Biscuit's muzzle at wet car cloth. No people visible — they have already left. "
-                "The sedan remains empty, in the ditch."
-            ),
-        },
-        # --- the_mitten ---
-        {
-            "beat_id": "the_mitten",
-            "id": "mitten_in_drift",
-            "spoken": "Beside the tire, half in a drift, a child's mitten. Red. Brighter than his bandana.",
-            "ssml": (
-                "Beside the tire, half in a drift, a child's mitten.<break time=\"0.35s\" /> "
-                "Red.<break time=\"0.28s\" /> Brighter than his bandana."
-            ),
             "break_after": 0.7,
-            "characters": ["biscuit"],
-            "motion": "slow_zoom_in",
-            "facts_add": ["a child's bright red mitten lies beside the sedan's rear tire, half-buried"],
-            "visual": (
-                "Close still: a child's bright red mitten beside a rusted rear tire, half-buried in snow. "
-                "Biscuit's muzzle nearby. Faded bandana duller than the mitten. No people. No other cars."
-            ),
-        },
-        {
-            "beat_id": "the_mitten",
-            "id": "nosed_mitten",
-            "spoken": "He nosed it. Snow fell off the cuff.",
-            "ssml": 'He nosed it.<break time="0.4s" /> Snow fell off the cuff.',
-            "break_after": 0.5,
-            "characters": ["biscuit"],
-            "motion": "slow_zoom_in",
-            "visual": (
-                "Biscuit nosing the red mitten; snow falling off the cuff. Close, simple. No people."
-            ),
-        },
-        {
-            "beat_id": "the_mitten",
-            "id": "lining_heat",
-            "spoken": "The lining still held a little heat, and a smell of soap and skin.",
-            "break_after": 0.65,
-            "characters": ["biscuit"],
-            "motion": "static",
-            "visual": (
-                "Extreme close still of the red mitten's cuff and lining, Biscuit's nose just in frame. "
-                "No people, no extra props."
-            ),
-        },
-        {
-            "beat_id": "the_mitten",
-            "id": "picked_up",
-            "spoken": "He picked it up. It was bigger in his mouth than it had looked on the ground.",
-            "ssml": (
-                "He picked it up.<break time=\"0.55s\" /> "
-                "It was bigger in his mouth than it had looked on the ground."
-            ),
-            "break_after": 0.5,
-            "characters": ["biscuit"],
-            "motion": "slow_zoom_in",
-            "facts_add": ["Biscuit carries the child's bright red mitten in his mouth"],
-            "facts_remove": ["a child's bright red mitten lies beside the sedan's rear tire, half-buried"],
-            "visual": (
-                "Biscuit lifting the red mitten in his teeth. It looks large in his mouth. "
-                "Faded bandana. Sedan tire behind him. No people."
-            ),
-        },
-        {
-            "beat_id": "the_mitten",
-            "id": "did_not_put_down",
-            "spoken": "He did not put it down.",
-            "break_after": 1.15,
-            "characters": ["biscuit"],
-            "motion": "static",
-            "visual": (
-                "Biscuit standing with the red mitten held in his mouth. He is not dropping it. "
-                "Empty winter ditch. No people."
-            ),
-        },
-        # --- the_tracks ---
-        {
-            "beat_id": "the_tracks",
-            "id": "prints_on_bank",
-            "spoken": "Prints left the road and climbed the bank. One large. One small, dragging at the heel.",
-            "ssml": (
-                "Prints left the road and climbed the bank.<break time=\"0.4s\" /> "
-                "One large.<break time=\"0.28s\" /> One small, dragging at the heel."
-            ),
-            "break_after": 0.55,
-            "characters": [],
-            "motion": "pan_left",
-            "visual": (
-                "Ditch bank climbing into a bare field: two sets of footprints, one large, one small and dragging. "
-                "Empty road behind. No people in frame. Snow starting to fill the prints."
-            ),
-        },
-        {
-            "beat_id": "the_tracks",
-            "id": "toward_trees",
-            "spoken": "They went into the field toward a line of trees that might have been a creek.",
-            "break_after": 0.55,
-            "characters": ["biscuit"],
-            "motion": "pan_right",
-            "visual": (
-                "Footprints heading into a white field toward a dark treeline. Biscuit small, mitten in his mouth. "
-                "No houses, no cars in the field."
-            ),
-        },
-        {
-            "beat_id": "the_tracks",
-            "id": "prints_filling",
+            "reference_shot_id": "",
+            "shot_description": "Biscuit alone in open country. Narration may speak of tracks; the picture is isolation.",
             "spoken": (
-                "The snow was filling them as he watched. A print was a print, and then it was only a dent, "
-                "and then it was nothing."
+                "The snow was filling them as he watched. A print was a print, and then it was only a "
+                "dent, and then it was nothing. He went after what remained, mitten in his teeth, chest "
+                "wading the drift. The field took the sound of the road away. Wire sang. Biscuit's paws "
+                "broke the crust and found the hard dirt under it. The small prints stopped. Then they "
+                "were gone. He cast left. He cast right. Farther on they were on the ground again, "
+                "shallower. He kept the mitten and went."
             ),
-            "ssml": (
-                "The snow was filling them as he watched.<break time=\"0.5s\" /> "
-                "A print was a print, and then it was only a dent, and then it was nothing."
-            ),
-            "break_after": 0.75,
-            "characters": [],
-            "motion": "slow_zoom_in",
-            "visual": (
-                "Close on footprints softening into dents, then nearly gone under new snow. "
-                "No people, no cars. Simple ground-level still."
-            ),
-        },
-        {
-            "beat_id": "the_tracks",
-            "id": "wading_drift",
-            "spoken": "He went after what remained, mitten in his teeth, chest wading the drift.",
-            "break_after": 0.7,
-            "characters": ["biscuit"],
-            "motion": "pan_left",
-            "visual": (
-                "Biscuit wading a drift, red mitten in his teeth, following fading prints. "
-                "Empty field. No people, no houses."
-            ),
-        },
-        # --- the_field ---
-        {
-            "beat_id": "the_field",
-            "id": "field_took_sound",
-            "spoken": "The field took the sound of the road away. Wire sang.",
-            "ssml": (
-                "The field took the sound of the road away.<break time=\"0.55s\" /> Wire sang."
-            ),
-            "break_after": 0.7,
-            "characters": ["biscuit"],
-            "motion": "slow_zoom_out",
-            "visual": (
-                "Biscuit small in a wide white field, fence wire in the wind. No road visible. "
-                "No buildings. Mitten in his mouth."
+            "visible_elements": ["biscuit", "red mitten in mouth", "wide snow field", "distant treeline", "sparse fence"],
+            "forbidden_elements": ["road", "sedan", "snowplow", "woman", "child", "culvert", "houses"],
+            "continuity": {
+                "geography": "open field; road and sedan no longer visible",
+                "biscuit": "crossing_field",
+                "mitten": "in_mouth",
+                "sedan_revealed": True,
+                "people_revealed": False,
+                "plow_revealed": False,
+            },
+            "local_prompt": (
+                "Wide winter field beneath a heavy iron-gray sky. "
+                f"{BISCUIT.capitalize()} walking away from camera through deep snow toward a distant "
+                "dark treeline. Bright red child's mitten held in his mouth. Blowing snow. Sparse fence "
+                "line far to one side."
             ),
         },
         {
-            "beat_id": "the_field",
-            "id": "paws_crust",
-            "spoken": "Biscuit's paws broke the crust and found the hard dirt under it.",
-            "break_after": 0.5,
-            "characters": ["biscuit"],
-            "motion": "slow_zoom_in",
-            "visual": (
-                "Close still of Biscuit's paws breaking snow crust to hard dirt. Simple. No people."
-            ),
-        },
-        {
-            "beat_id": "the_field",
-            "id": "prints_gone",
-            "spoken": "The small prints stopped. Then they were gone. He cast left. He cast right.",
-            "ssml": (
-                "The small prints stopped.<break time=\"0.55s\" /> Then they were gone.<break time=\"0.45s\" /> "
-                "He cast left.<break time=\"0.28s\" /> He cast right."
-            ),
-            "break_after": 0.6,
-            "characters": ["biscuit"],
-            "motion": "pan_right",
-            "visual": (
-                "Biscuit in the field where small prints end. Casting left, then implied right. "
-                "Empty white ground. Mitten in his mouth. No people."
-            ),
-        },
-        {
-            "beat_id": "the_field",
-            "id": "shallower_went",
-            "spoken": "Farther on they were on the ground again, shallower. He kept the mitten and went.",
-            "ssml": (
-                "Farther on they were on the ground again, shallower.<break time=\"0.45s\" /> "
-                "He kept the mitten and went."
-            ),
-            "break_after": 0.7,
-            "characters": ["biscuit"],
-            "motion": "pan_left",
-            "visual": (
-                "Shallower prints again; Biscuit going on with the red mitten. Treeline ahead. No houses."
-            ),
-        },
-        # --- the_creek ---
-        {
+            "id": "creek_woods",
+            "sequence_id": "creek_woods",
+            "location_id": "creek_woods",
             "beat_id": "the_creek",
-            "id": "tracks_ended",
-            "spoken": "At the creek the tracks ended. Ice. A crack of black water.",
-            "ssml": (
-                "At the creek the tracks ended.<break time=\"0.45s\" /> Ice.<break time=\"0.28s\" /> "
-                "A crack of black water."
-            ),
-            "break_after": 0.7,
-            "characters": ["biscuit"],
-            "motion": "slow_zoom_in",
-            "visual": (
-                "Frozen creek at a treeline. Tracks ending. Ice with a crack of black water. "
-                "Biscuit standing back. No house, no light, no people."
-            ),
-        },
-        {
-            "beat_id": "the_creek",
-            "id": "no_house_no_light",
-            "spoken": "No house. No light.",
-            "ssml": 'No house.<break time="0.4s" /> No light.',
-            "break_after": 1.15,
-            "characters": [],
-            "motion": "slow_zoom_out",
-            "visual": (
-                "Wide winter creek country: no house, no window light, no road. Darker trees only. "
-                "Do not add a farmhouse or streetlamp."
-            ),
-        },
-        {
-            "beat_id": "the_creek",
-            "id": "ears_flat",
-            "spoken": "The trees were only a darker weather. Biscuit stood with his ears flat and the mitten dripping.",
-            "ssml": (
-                "The trees were only a darker weather.<break time=\"0.55s\" /> "
-                "Biscuit stood with his ears flat and the mitten dripping."
-            ),
-            "break_after": 0.75,
+            "title": "The ground stops talking",
+            "emotion": "dread",
             "characters": ["biscuit"],
             "motion": "static",
-            "visual": (
-                "Biscuit at the frozen creek, ears flat, wet red mitten dripping. Dark trees. "
-                "No house, no people."
-            ),
-        },
-        {
-            "beat_id": "the_creek",
-            "id": "smell_to_dark",
+            "break_after": 0.65,
+            "reference_shot_id": "",
+            "shot_description": "Creek and darker trees. Remote from the road. No people yet.",
             "spoken": (
-                "He went along the bank, upstream, then down. The smell thinned. "
-                "Then it gathered again, low, where the water went into the dark."
+                "At the creek the tracks ended. Ice. A crack of black water. No house. No light. "
+                "The trees were only a darker weather. Biscuit stood with his ears flat and the mitten "
+                "dripping. He went along the bank, upstream, then down. The smell thinned. Then it "
+                "gathered again, low, where the water went into the dark."
             ),
-            "ssml": (
-                "He went along the bank, upstream, then down.<break time=\"0.45s\" /> "
-                "The smell thinned.<break time=\"0.7s\" /> "
-                "Then it gathered again, low, where the water went into the dark."
-            ),
-            "break_after": 0.8,
-            "characters": ["biscuit"],
-            "motion": "pan_right",
-            "visual": (
-                "Biscuit along an icy bank toward a dark concrete opening where water goes under. "
-                "No people yet. Mitten in his mouth."
+            "visible_elements": ["frozen creek", "black water", "bare trees", "biscuit", "wet red mitten"],
+            "forbidden_elements": ["road", "sedan", "snowplow", "woman", "child", "culvert", "houses", "lights"],
+            "continuity": {
+                "geography": "creek at the treeline; road not visible",
+                "biscuit": "at_creek",
+                "mitten": "in_mouth",
+                "sedan_revealed": True,
+                "people_revealed": False,
+                "plow_revealed": False,
+            },
+            "local_prompt": (
+                "A frozen creek at a dark winter treeline. Ice at the edges and a crack of black water. "
+                f"{BISCUIT.capitalize()} on the bank, ears slightly flat, a wet red child's mitten in his "
+                "mouth. Bare trees closing in. Flat dying winter light. Enclosed woods, remote country."
             ),
         },
-        # --- the_culvert ---
         {
+            "id": "culvert_mouth",
+            "sequence_id": "culvert",
+            "location_id": "culvert_mouth",
             "beat_id": "the_culvert",
-            "id": "concrete_throat",
-            "spoken": "The creek went under the road through a concrete throat. He smelled milk and wet wool. He went in.",
-            "ssml": (
-                "The creek went under the road through a concrete throat.<break time=\"0.45s\" /> "
-                "He smelled milk and wet wool.<break time=\"0.4s\" /> He went in."
-            ),
-            "break_after": 0.55,
+            "title": "The throat",
+            "emotion": "discovery",
             "characters": ["biscuit"],
             "motion": "slow_zoom_in",
-            "visual": (
-                "Mouth of a concrete culvert under the road, Biscuit entering with the mitten. "
-                "Gray wet walls. No people visible yet. Road above, no traffic."
+            "break_after": 0.4,
+            "reference_shot_id": "",
+            "shot_description": "Concrete culvert mouth. He goes in. Occupants not yet visible.",
+            "spoken": (
+                "The creek went under the road through a concrete throat. He smelled milk and wet wool. "
+                "He went in."
+            ),
+            "visible_elements": ["concrete culvert mouth", "creek water", "biscuit entering with mitten"],
+            "forbidden_elements": ["woman", "child", "snowplow", "sedan", "road surface", "driver"],
+            "continuity": {
+                "geography": "culvert at creek level; road above is not shown",
+                "biscuit": "entering_culvert",
+                "mitten": "in_mouth",
+                "sedan_revealed": True,
+                "people_revealed": False,
+                "plow_revealed": False,
+            },
+            "local_prompt": (
+                "The mouth of a weathered concrete culvert where a winter creek disappears into darkness. "
+                f"Gray wet walls. {BISCUIT.capitalize()} entering the dark throat, a red child's mitten in "
+                "his mouth. Enclosed, low, dim. Documentary grain."
             ),
         },
         {
+            "id": "culvert_discovery",
+            "sequence_id": "culvert",
+            "location_id": "culvert_interior",
             "beat_id": "the_culvert",
-            "id": "they_were_there",
-            "spoken": "They were there. A woman against the wall. A child in her lap.",
-            "ssml": (
-                "They were there.<break time=\"1.1s\" /> "
-                "A woman against the wall.<break time=\"0.35s\" /> A child in her lap."
-            ),
-            "break_after": 0.6,
+            "title": "They were there",
+            "emotion": "discovery",
             "characters": ["biscuit", "woman", "child"],
-            "motion": "slow_zoom_in",
-            "facts_add": [
-                "a woman in a thin gray coat and a small child in a navy snowsuit are inside the concrete culvert, not on the road"
-            ],
-            "visual": (
-                "Interior of the culvert: woman sitting against the curve in a thin gray coat, "
-                "small child in a navy snowsuit in her lap. Biscuit at the mouth, mitten in his teeth. "
-                "Almost no light. They are not standing on the blacktop."
+            "motion": "static",
+            "break_after": 0.7,
+            "reference_shot_id": "culvert_mouth",
+            "shot_description": "First reveal of the woman and child.",
+            "spoken": (
+                "They were there. A woman against the wall. A child in her lap. One bare hand. Ice in "
+                "the woman's hair. The child's eyes were open too. Neither of them spoke. Water ticked "
+                "somewhere in the dark behind them."
+            ),
+            "visible_elements": ["culvert interior", "woman", "child", "biscuit", "mitten in biscuit's mouth"],
+            "forbidden_elements": ["snowplow", "sedan", "road", "driver"],
+            "continuity": {
+                "geography": "inside the culvert",
+                "biscuit": "with_them",
+                "mitten": "in_mouth",
+                "sedan_revealed": True,
+                "people_revealed": True,
+                "plow_revealed": False,
+            },
+            "local_prompt": (
+                "Interior of a dark concrete culvert. A young woman in a thin gray cloth coat sitting "
+                "against the curved wet wall, dark hair iced at the temples, no gloves. A small child in "
+                "a navy snowsuit in her lap, dark curls in the hood, one red mitten, one bare chapped hand. "
+                f"{BISCUIT.capitalize()} just inside the mouth, a bright red child's mitten still in his "
+                "teeth. Almost no light. Concrete sweating."
             ),
         },
         {
-            "beat_id": "the_culvert",
-            "id": "bare_hand_ice",
-            "spoken": "One bare hand. Ice in the woman's hair.",
-            "ssml": "One bare hand.<break time=\"0.4s\" /> Ice in the woman's hair.",
-            "break_after": 0.55,
-            "characters": ["woman", "child"],
-            "motion": "slow_zoom_in",
-            "visual": (
-                "Close still: child's one bare hand, one red mitten missing; ice in the woman's dark hair. "
-                "Navy snowsuit. No gore. Culvert concrete. Low light."
-            ),
-        },
-        {
-            "beat_id": "the_culvert",
-            "id": "eyes_open_water",
-            "spoken": "The child's eyes were open too. Neither of them spoke. Water ticked somewhere in the dark behind them.",
-            "ssml": (
-                "The child's eyes were open too.<break time=\"0.55s\" /> "
-                "Neither of them spoke.<break time=\"0.7s\" /> "
-                "Water ticked somewhere in the dark behind them."
-            ),
+            "id": "culvert_vigil",
+            "sequence_id": "culvert",
+            "location_id": "culvert_interior",
+            "beat_id": "the_hand",
+            "title": "What he could put back",
+            "emotion": "tenderness",
+            "characters": ["biscuit", "woman", "child"],
+            "motion": "static",
             "break_after": 0.9,
-            "characters": ["woman", "child"],
-            "motion": "static",
-            "visual": (
-                "Quiet still of the child in the woman's lap, eyes open, both silent. Dark wet culvert. "
-                "No extra people. No daylight highway scene."
-            ),
-        },
-        # --- the_hand ---
-        {
-            "beat_id": "the_hand",
-            "id": "dropped_mitten",
-            "spoken": "He dropped the mitten on the bare hand and pressed against them.",
-            "break_after": 0.6,
-            "characters": ["biscuit", "woman", "child"],
-            "motion": "slow_zoom_in",
-            "facts_add": ["the child's bright red mitten is on the bare hand; Biscuit is not carrying it"],
-            "facts_remove": ["Biscuit carries the child's bright red mitten in his mouth"],
-            "visual": (
-                "Biscuit dropping the red mitten onto the child's bare hand, pressing against them. "
-                "Culvert interior. Low light. No extra people."
-            ),
-        },
-        {
-            "beat_id": "the_hand",
-            "id": "child_sound_fingers",
-            "spoken": "The child made a small sound. The woman's fingers found his fur and stayed, clumsy with cold.",
-            "ssml": (
-                "The child made a small sound.<break time=\"0.55s\" /> "
-                "The woman's fingers found his fur and stayed, clumsy with cold."
-            ),
-            "break_after": 0.6,
-            "characters": ["biscuit", "woman", "child"],
-            "motion": "slow_zoom_in",
-            "visual": (
-                "Woman's ungloved fingers in Biscuit's scruff; child in the navy snowsuit. Culvert. Quiet."
-            ),
-        },
-        {
-            "beat_id": "the_hand",
-            "id": "still_in_pipe",
+            "reference_shot_id": "culvert_discovery",
+            "shot_description": "Mitten returned. They stay. Stillness covers the long wait.",
             "spoken": (
-                "He licked the knuckles. Then he was still. The wind moved through the pipe. "
-                "Time passed. No one else came down the bank."
+                "He dropped the mitten on the bare hand and pressed against them. The child made a small "
+                "sound. The woman's fingers found his fur and stayed, clumsy with cold. He licked the "
+                "knuckles. Then he was still. The wind moved through the pipe. Time passed. No one else "
+                "came down the bank."
             ),
-            "ssml": (
-                "He licked the knuckles.<break time=\"0.45s\" /> Then he was still.<break time=\"0.7s\" /> "
-                "The wind moved through the pipe.<break time=\"0.55s\" /> Time passed.<break time=\"0.85s\" /> "
-                "No one else came down the bank."
-            ),
-            "break_after": 1.1,
-            "characters": ["biscuit", "woman", "child"],
-            "motion": "static",
-            "visual": (
-                "The three of them still in the culvert. No one on the bank. No rescuer yet. "
-                "Wind implied at the pipe mouth. Do not add the plow or the driver."
-            ),
-        },
-        # --- the_blacktop ---
-        {
-            "beat_id": "the_blacktop",
-            "id": "left_them_not_far",
-            "spoken": "Nothing came. After a time he left them. Not far.",
-            "ssml": (
-                "Nothing came.<break time=\"0.9s\" /> After a time he left them.<break time=\"0.4s\" /> Not far."
-            ),
-            "break_after": 0.65,
-            "characters": ["biscuit"],
-            "motion": "pan_right",
-            "visual": (
-                "Biscuit leaving the culvert mouth, climbing. Woman and child not in this frame — they remain inside. "
-                "No plow yet. Empty winter ditch."
+            "visible_elements": ["culvert interior", "woman", "child with both mittens", "biscuit pressed against them"],
+            "forbidden_elements": ["snowplow", "sedan", "road", "driver"],
+            "continuity": {
+                "geography": "inside the culvert",
+                "biscuit": "with_them",
+                "mitten": "on_child",
+                "sedan_revealed": True,
+                "people_revealed": True,
+                "plow_revealed": False,
+            },
+            "local_prompt": (
+                "Interior of a dark concrete culvert, close and still. The child in a navy snowsuit now "
+                "has the bright red mitten on the previously bare hand. The woman in the thin gray coat "
+                f"has her ungloved fingers in the fur of {BISCUIT}, who is pressed against them. Dim wet "
+                "concrete. Almost no light."
             ),
         },
         {
+            "id": "return_climb",
+            "sequence_id": "return_to_road",
+            "location_id": "road_bank",
             "beat_id": "the_blacktop",
-            "id": "climbed_blacktop",
-            "spoken": "He climbed the iced slope to the blacktop, where a machine might still pass.",
-            "break_after": 0.55,
+            "title": "Back to the blacktop",
+            "emotion": "determination",
             "characters": ["biscuit"],
             "motion": "slow_zoom_out",
-            "visual": (
-                "Biscuit climbing the iced slope to the empty blacktop. No cars passing. Dusk. No people."
-            ),
-        },
-        {
-            "beat_id": "the_blacktop",
-            "id": "door_still_hung",
-            "spoken": "The sedan's door still hung open in the ditch.",
-            "break_after": 0.75,
-            "characters": [],
-            "motion": "static",
-            "reuse": "sedan_in_ditch",
-            "visual": (
-                "The same stalled sedan in the ditch, door still hanging open. Empty road. No traffic."
-            ),
-        },
-        {
-            "beat_id": "the_blacktop",
-            "id": "barked_in_road",
-            "spoken": "He stood in the middle of the road and barked. He barked until his throat caught.",
-            "ssml": (
-                "He stood in the middle of the road and barked.<break time=\"0.45s\" /> "
-                "He barked until his throat caught."
-            ),
-            "break_after": 0.55,
-            "characters": ["biscuit"],
-            "motion": "slow_zoom_in",
-            "visual": (
-                "Biscuit alone in the middle of the empty blacktop, barking. White dusk. "
-                "Sedan in the ditch behind him. No other traffic, no people."
-            ),
-        },
-        {
-            "beat_id": "the_blacktop",
-            "id": "country_ate_sound",
-            "spoken": "The country ate the sound.",
-            "break_after": 1.25,
-            "characters": ["biscuit"],
-            "motion": "slow_zoom_out",
-            "visual": (
-                "Wide empty country swallowing the dog. No answering lights, no cars, no houses. Iron sky."
-            ),
-        },
-        # --- the_plow ---
-        {
-            "beat_id": "the_plow",
-            "id": "amber_late",
-            "spoken": "First a noise under the wind. Then amber, late, a long way off.",
-            "ssml": (
-                "First a noise under the wind.<break time=\"0.55s\" /> Then amber, late, a long way off."
-            ),
-            "break_after": 0.65,
-            "characters": ["biscuit"],
-            "motion": "pan_left",
-            "facts_add": ["a snowplow with amber light is approaching on the long road; it is the only moving vehicle"],
-            "visual": (
-                "Far amber plow light on the long straight empty road. Biscuit small in the foreground. "
-                "No other cars. Dusk."
-            ),
-        },
-        {
-            "beat_id": "the_plow",
-            "id": "plow_wall",
-            "spoken": "A plow, high and loud, throwing a wall of snow. It slowed for the hanging door.",
-            "ssml": (
-                "A plow, high and loud, throwing a wall of snow.<break time=\"0.5s\" /> "
-                "It slowed for the hanging door."
-            ),
-            "break_after": 0.55,
-            "characters": [],
-            "motion": "pan_left",
-            "visual": (
-                "Snowplow filling the frame with amber light, blade throwing snow, slowing near the hanging sedan door. "
-                "No other traffic. The sedan stays in the ditch."
-            ),
-        },
-        {
-            "beat_id": "the_plow",
-            "id": "man_at_car",
-            "spoken": "A man got down in a canvas coat. He looked in the car.",
-            "ssml": "A man got down in a canvas coat.<break time=\"0.4s\" /> He looked in the car.",
             "break_after": 0.5,
-            "characters": ["driver"],
-            "motion": "slow_zoom_in",
-            "facts_add": ["the plow driver in a canvas coat and orange vest is at the stalled sedan"],
-            "visual": (
-                "Older man in canvas chore coat, orange vest, wool cap, gray mustache, standing by the open sedan. "
-                "Biscuit not required in frame. No other people."
+            "reference_shot_id": "leaving_the_road",
+            "shot_description": "He leaves them and climbs to the established road and sedan. No plow.",
+            "spoken": (
+                "Nothing came. After a time he left them. Not far. He climbed the iced slope to the "
+                "blacktop, where a machine might still pass. The sedan's door still hung open in the ditch."
+            ),
+            "visible_elements": ["biscuit climbing", "iced bank", "blacktop above", "sedan in ditch", "hanging door"],
+            "forbidden_elements": ["snowplow", "woman", "child", "driver"],
+            "continuity": {
+                "geography": "return path: bank to road and sedan",
+                "biscuit": "climbing_to_road",
+                "mitten": "left_with_child",
+                "sedan_revealed": True,
+                "people_revealed": True,
+                "plow_revealed": False,
+            },
+            "local_prompt": (
+                f"{BISCUIT.capitalize()} climbing an iced snowy bank toward a two-lane blacktop above. "
+                "Ahead, a rusted sedan sits in the ditch with its door hanging open. White dusk. Empty "
+                "winter road. Documentary still."
             ),
         },
         {
-            "beat_id": "the_plow",
-            "id": "door_and_dog",
-            "spoken": "He shut the door once, and the wind opened it again. He looked at the dog.",
-            "ssml": (
-                "He shut the door once, and the wind opened it again.<break time=\"0.7s\" /> "
-                "He looked at the dog."
-            ),
+            "id": "barking_on_road",
+            "sequence_id": "return_to_road",
+            "location_id": "sedan_ditch",
+            "beat_id": "the_blacktop",
+            "title": "The country ate the sound",
+            "emotion": "determination",
+            "characters": ["biscuit"],
+            "motion": "static",
             "break_after": 0.85,
-            "characters": ["biscuit", "driver"],
-            "motion": "static",
-            "facts_add": ["the sedan door is hanging open again after the wind opened it"],
-            "visual": (
-                "Driver looking at Biscuit in the road. Sedan door hanging open again. Amber plow light. "
-                "No extra workers, no extra vehicles."
+            "reference_shot_id": "sedan_in_ditch",
+            "shot_description": "Empty road and sedan. Biscuit barking. The plow has not yet entered the picture.",
+            "spoken": (
+                "He stood in the middle of the road and barked. He barked until his throat caught. "
+                "The country ate the sound."
             ),
-        },
-        # --- the_pull ---
-        {
-            "beat_id": "the_pull",
-            "id": "ditch_and_back",
-            "spoken": "Biscuit ran to the ditch and back. To the man. To the ditch.",
-            "ssml": (
-                "Biscuit ran to the ditch and back.<break time=\"0.3s\" /> To the man.<break time=\"0.28s\" /> "
-                "To the ditch."
-            ),
-            "break_after": 0.45,
-            "characters": ["biscuit", "driver"],
-            "motion": "pan_right",
-            "visual": (
-                "Biscuit running between the man at the sedan and the ditch. Simple action. Empty road otherwise."
+            "visible_elements": ["biscuit in the road", "empty blacktop", "sedan in ditch", "hanging door"],
+            "forbidden_elements": ["snowplow", "woman", "child", "driver"],
+            "continuity": {
+                "geography": "established road and sedan; still empty of traffic",
+                "biscuit": "in_road",
+                "mitten": "left_with_child",
+                "sedan_revealed": True,
+                "people_revealed": True,
+                "plow_revealed": False,
+            },
+            "local_prompt": (
+                "Wide still of an empty two-lane winter road at white dusk. "
+                f"{BISCUIT.capitalize()} standing alone in the middle of the blacktop. Behind him a rusted "
+                "sedan in the ditch with its door hanging open. Fence. Iron sky. The country is empty."
             ),
         },
         {
-            "beat_id": "the_pull",
-            "id": "barked_from_pipe",
-            "spoken": "The man shouted once. Biscuit barked from the dark of the pipe.",
-            "ssml": "The man shouted once.<break time=\"0.5s\" /> Biscuit barked from the dark of the pipe.",
-            "break_after": 0.55,
-            "characters": ["biscuit", "driver"],
+            "id": "amber_far",
+            "sequence_id": "snowplow_rescue",
+            "location_id": "empty_road",
+            "beat_id": "the_plow",
+            "title": "Amber, late",
+            "emotion": "interruption",
+            "characters": ["biscuit"],
             "motion": "slow_zoom_in",
-            "visual": (
-                "Biscuit at the culvert mouth in the dark concrete, barking. Driver up the bank. No extra people."
-            ),
-        },
-        {
-            "beat_id": "the_pull",
-            "id": "followed",
-            "spoken": "The man came down the bank, one glove on the fence post, and followed.",
-            "break_after": 0.75,
-            "characters": ["biscuit", "driver"],
-            "motion": "pan_left",
-            "visual": (
-                "Driver halfway down the bank, one glove on a fence post, following the dog, not the road. "
-                "Orange vest. Culvert below."
-            ),
-        },
-        # --- the_lift ---
-        {
-            "beat_id": "the_lift",
-            "id": "knees_child",
-            "spoken": "The man went to his knees in the wet concrete. He took the child.",
-            "ssml": (
-                "The man went to his knees in the wet concrete.<break time=\"0.45s\" /> He took the child."
-            ),
             "break_after": 0.7,
-            "characters": ["biscuit", "woman", "child", "driver"],
-            "motion": "slow_zoom_in",
-            "visual": (
-                "Driver on his knees in the culvert, lifting the child in the navy snowsuit. "
-                "Woman still sitting. Biscuit at the threshold, not in the way. Plow light at the mouth."
+            "reference_shot_id": "empty_road",
+            "shot_description": "First appearance of the snowplow: distant amber on the long road.",
+            "spoken": "First a noise under the wind. Then amber, late, a long way off.",
+            "visible_elements": ["long empty road", "distant amber lights", "distant snowplow", "biscuit small in foreground"],
+            "forbidden_elements": ["woman", "child", "culvert"],
+            "continuity": {
+                "geography": "long straight road; plow still far away",
+                "biscuit": "watching_from_road",
+                "mitten": "left_with_child",
+                "sedan_revealed": True,
+                "people_revealed": True,
+                "plow_revealed": True,
+            },
+            "local_prompt": (
+                "Very wide winter road at dusk. A long straight two-lane blacktop through empty farm "
+                "country. Far in the distance, tiny amber hazard lights of a snowplow approaching through "
+                f"blowing snow. In the foreground, {BISCUIT} is a small dark shape on the road, watching. "
+                "The landscape is still mostly empty sky and white fields."
             ),
         },
         {
-            "beat_id": "the_lift",
-            "id": "got_her_up",
-            "spoken": "The woman tried to stand and could not, so he came back for her and got her up.",
-            "break_after": 0.55,
-            "characters": ["woman", "driver"],
-            "motion": "slow_zoom_in",
-            "visual": (
-                "Driver helping the woman in the thin gray coat to stand in the wet culvert. "
-                "She is not walking far on her own. No extra rescuers."
-            ),
-        },
-        {
-            "beat_id": "the_lift",
-            "id": "were_going",
-            "spoken": "He said, We're going. That was all.",
-            "ssml": "He said, We're going.<break time=\"0.7s\" /> That was all.",
-            "break_after": 1.0,
-            "characters": ["driver"],
+            "id": "plow_at_sedan",
+            "sequence_id": "snowplow_rescue",
+            "location_id": "sedan_ditch",
+            "beat_id": "the_plow",
+            "title": "It slowed for the hanging door",
+            "emotion": "interruption",
+            "characters": ["biscuit", "driver"],
             "motion": "static",
-            "visual": (
-                "Close still of the driver's face in plow light, mouth closed after speaking. "
-                "Canvas coat, wool cap, ice in the mustache. Not theatrical."
+            "break_after": 0.55,
+            "reference_shot_id": "sedan_in_ditch",
+            "shot_description": "Plow stopped at the sedan. Driver on the ground.",
+            "spoken": (
+                "A plow, high and loud, throwing a wall of snow. It slowed for the hanging door. "
+                "A man got down in a canvas coat. He looked in the car. He shut the door once, and the "
+                "wind opened it again. He looked at the dog."
+            ),
+            "visible_elements": ["orange snowplow", "sedan in ditch", "hanging door", "driver", "biscuit"],
+            "forbidden_elements": ["woman", "child", "culvert"],
+            "continuity": {
+                "geography": "plow at the established sedan / road",
+                "biscuit": "with_driver",
+                "mitten": "left_with_child",
+                "sedan_revealed": True,
+                "people_revealed": True,
+                "plow_revealed": True,
+            },
+            "local_prompt": (
+                "A tired orange snowplow stopped on a two-lane winter road, blade down, amber lights "
+                "washing the snow. A rusted sedan in the ditch with its door hanging open. An older man "
+                "in a canvas chore coat, orange vest, wool cap, and gray mustache standing beside the "
+                f"sedan. {BISCUIT} in the road watching him. White dusk."
             ),
         },
         {
+            "id": "leading_driver",
+            "sequence_id": "snowplow_rescue",
+            "location_id": "road_bank",
+            "beat_id": "the_pull",
+            "title": "Followed",
+            "emotion": "insistence",
+            "characters": ["biscuit", "driver"],
+            "motion": "slow_zoom_in",
+            "break_after": 0.55,
+            "reference_shot_id": "return_climb",
+            "shot_description": "Driver follows Biscuit off the road toward the culvert mouth.",
+            "spoken": (
+                "Biscuit ran to the ditch and back. To the man. To the ditch. The man shouted once. "
+                "Biscuit barked from the dark of the pipe. The man came down the bank, one glove on the "
+                "fence post, and followed."
+            ),
+            "visible_elements": ["driver on the bank", "biscuit", "culvert mouth", "fence post"],
+            "forbidden_elements": ["woman", "child"],
+            "continuity": {
+                "geography": "road to bank to culvert; people still inside the pipe",
+                "biscuit": "leading",
+                "mitten": "left_with_child",
+                "sedan_revealed": True,
+                "people_revealed": True,
+                "plow_revealed": True,
+            },
+            "local_prompt": (
+                "Winter ditch bank below a farm road. An older man in a canvas chore coat, orange vest, "
+                "wool cap, and heavy gloves coming down through snow, one glove on a fence post. "
+                f"{BISCUIT.capitalize()} ahead of him, facing a dark concrete culvert mouth in the bank. "
+                "Blowing snow."
+            ),
+        },
+        {
+            "id": "rescue_in_culvert",
+            "sequence_id": "snowplow_rescue",
+            "location_id": "culvert_interior",
             "beat_id": "the_lift",
-            "id": "no_farther",
+            "title": "We're going",
+            "emotion": "extraction",
+            "characters": ["biscuit", "woman", "child", "driver"],
+            "motion": "static",
+            "break_after": 0.55,
+            "reference_shot_id": "culvert_vigil",
+            "shot_description": "Driver lifts the child. The woman is gotten up.",
+            "spoken": (
+                "The man went to his knees in the wet concrete. He took the child. The woman tried to "
+                "stand and could not, so he came back for her and got her up. He said, We're going. "
+                "That was all."
+            ),
+            "visible_elements": ["culvert interior", "driver", "child", "woman", "biscuit"],
+            "forbidden_elements": ["sedan", "full snowplow body"],
+            "continuity": {
+                "geography": "inside the culvert during rescue",
+                "biscuit": "at_threshold",
+                "mitten": "on_child",
+                "sedan_revealed": True,
+                "people_revealed": True,
+                "plow_revealed": True,
+            },
+            "local_prompt": (
+                "Inside the wet concrete culvert at dusk. An older man in a canvas coat and orange vest "
+                "on his knees, lifting the small child in the navy snowsuit. The woman in the thin gray "
+                f"coat trying to rise. {BISCUIT.capitalize()} at the threshold, not in the way. Amber light "
+                "reaching in from the mouth. Documentary still."
+            ),
+        },
+        {
+            "id": "running_board",
+            "sequence_id": "snowplow_rescue",
+            "location_id": "sedan_ditch",
+            "beat_id": "the_lift",
+            "title": "No farther",
+            "emotion": "extraction",
+            "characters": ["biscuit", "woman", "child", "driver"],
+            "motion": "static",
+            "break_after": 0.95,
+            "reference_shot_id": "plow_at_sedan",
+            "shot_description": "They reach the plow. Biscuit stops at the running board.",
             "spoken": (
                 "They climbed the bank in the plow light. Biscuit walked behind them as far as the "
                 "truck's running board. No farther."
             ),
-            "ssml": (
-                "They climbed the bank in the plow light.<break time=\"0.45s\" /> "
-                "Biscuit walked behind them as far as the truck's running board.<break time=\"0.7s\" /> "
-                "No farther."
-            ),
-            "break_after": 0.95,
-            "characters": ["biscuit", "woman", "child", "driver"],
-            "motion": "slow_zoom_out",
-            "facts_add": [
-                "the woman and child are with the driver at the plow; they are leaving the culvert"
-            ],
-            "facts_remove": [
-                "a woman in a thin gray coat and a small child in a navy snowsuit are inside the concrete culvert, not on the road"
-            ],
-            "visual": (
-                "They climb the bank in amber plow light. Biscuit stops at the truck's running board. "
-                "He does not get in. No other vehicles."
+            "visible_elements": ["snowplow", "running board", "driver", "woman", "child", "biscuit stopping"],
+            "forbidden_elements": [],
+            "continuity": {
+                "geography": "back at the road / plow",
+                "biscuit": "at_running_board",
+                "mitten": "on_child",
+                "sedan_revealed": True,
+                "people_revealed": True,
+                "plow_revealed": True,
+            },
+            "local_prompt": (
+                "Dusk at an orange snowplow beside a winter road. An older driver helping a woman in a "
+                "thin gray coat and a child in a navy snowsuit toward the cab. Amber plow light on the "
+                f"snow. {BISCUIT.capitalize()} standing at the truck's running board, going no farther. "
+                "A rusted sedan in the ditch nearby."
             ),
         },
-        # --- the_record ---
         {
+            "id": "plow_recedes",
+            "sequence_id": "departure",
+            "location_id": "empty_road",
             "beat_id": "the_record",
-            "id": "plow_receding",
-            "spoken": "The cab door shut. Heat leaked out and was gone. The plow moved off, amber shrinking on the long straight road.",
-            "ssml": (
-                "The cab door shut.<break time=\"0.4s\" /> Heat leaked out and was gone.<break time=\"0.55s\" /> "
-                "The plow moved off, amber shrinking on the long straight road."
-            ),
-            "break_after": 0.7,
+            "title": "Amber shrinking",
+            "emotion": "aftertaste",
             "characters": ["biscuit"],
-            "motion": "pan_right",
-            "facts_add": ["the plow is receding down the long straight road; Biscuit is alone again"],
-            "facts_remove": [
-                "a snowplow with amber light is approaching on the long road; it is the only moving vehicle",
-                "the plow driver in a canvas coat and orange vest is at the stalled sedan",
-                "the woman and child are with the driver at the plow; they are leaving the culvert",
-            ],
-            "visual": (
-                "Night coming. Plow small and amber, receding on the long straight empty road. "
-                "Biscuit on the shoulder. No other cars. Sedan still in the ditch."
-            ),
-        },
-        {
-            "beat_id": "the_record",
-            "id": "field_taken_back",
-            "spoken": "Biscuit stood by the sedan. Snow was already taking the field back.",
-            "ssml": "Biscuit stood by the sedan.<break time=\"0.5s\" /> Snow was already taking the field back.",
+            "motion": "slow_zoom_out",
             "break_after": 0.65,
-            "characters": ["biscuit"],
-            "motion": "slow_zoom_out",
-            "visual": (
-                "Biscuit by the stalled sedan in the ditch. Snow filling the field. No people. "
-                "Door still hanging. Empty road."
+            "reference_shot_id": "amber_far",
+            "shot_description": "The plow leaves. The country begins to empty.",
+            "spoken": (
+                "The cab door shut. Heat leaked out and was gone. The plow moved off, amber shrinking "
+                "on the long straight road. Biscuit stood by the sedan."
+            ),
+            "visible_elements": ["distant receding snowplow", "amber lights", "empty road", "biscuit", "sedan in ditch"],
+            "forbidden_elements": ["woman", "child", "driver outside the cab"],
+            "continuity": {
+                "geography": "road emptying as the plow recedes",
+                "biscuit": "by_sedan",
+                "mitten": "gone_with_child",
+                "sedan_revealed": True,
+                "people_revealed": True,
+                "plow_revealed": True,
+            },
+            "local_prompt": (
+                "Long straight winter road at nightfall. A snowplow already small, amber lights shrinking "
+                f"away down the empty blacktop. {BISCUIT.capitalize()} standing by a rusted sedan in the "
+                "ditch. The country becoming empty again."
             ),
         },
         {
+            "id": "biscuit_goes_on",
+            "sequence_id": "departure",
+            "location_id": "empty_road",
             "beat_id": "the_record",
-            "id": "went_on",
-            "spoken": "He shook the ice from his coat and went on, small under that iron sky.",
-            "break_after": 0.75,
+            "title": "Small under that iron sky",
+            "emotion": "aftertaste",
             "characters": ["biscuit"],
-            "motion": "pan_right",
-            "visual": (
-                "Biscuit shaking ice from his coat, walking south on the shoulder, tiny under an iron sky. "
-                "No houses. No people. No cars on the road."
+            "motion": "static",
+            "break_after": 0.7,
+            "reference_shot_id": "biscuit_on_road",
+            "shot_description": "Biscuit continues. The landscape is empty again.",
+            "spoken": (
+                "Snow was already taking the field back. He shook the ice from his coat and went on, "
+                "small under that iron sky."
+            ),
+            "visible_elements": ["biscuit walking on", "empty road or shoulder", "field", "iron sky"],
+            "forbidden_elements": ["snowplow", "woman", "child", "driver"],
+            "continuity": {
+                "geography": "empty road and field again",
+                "biscuit": "going_on",
+                "mitten": "gone_with_child",
+                "sedan_revealed": True,
+                "people_revealed": True,
+                "plow_revealed": True,
+            },
+            "local_prompt": (
+                "Wide elemental winter still. "
+                f"{BISCUIT.capitalize()} walking away along the packed shoulder of an empty two-lane "
+                "county road, small under an iron-gray sky. Fence. Field. Fence. Blowing snow taking "
+                "the country back."
             ),
         },
         {
+            "id": "hanging_door",
+            "sequence_id": "departure",
+            "location_id": "sedan_ditch",
             "beat_id": "the_record",
-            "id": "road_kept_no_record",
-            "spoken": "Behind him the open door gathered white. The road kept no record.",
-            "ssml": (
-                "Behind him the open door gathered white.<break time=\"0.7s\" /> The road kept no record."
-            ),
-            "break_after": 1.2,
+            "title": "The road kept no record",
+            "emotion": "aftertaste",
             "characters": [],
             "motion": "slow_zoom_in",
-            "visual": (
-                "The sedan's open door gathering snow. Empty road keeping nothing. No people, no traffic. "
-                "Last still: elemental, unsentimental."
+            "break_after": 1.2,
+            "reference_shot_id": "sedan_in_ditch",
+            "shot_description": "Final still: abandoned door gathering white. No figures.",
+            "spoken": "Behind him the open door gathered white. The road kept no record.",
+            "visible_elements": ["sedan in ditch", "hanging door gathering snow", "empty road", "field"],
+            "forbidden_elements": ["biscuit", "snowplow", "people"],
+            "continuity": {
+                "geography": "sedan remains; everyone else is gone",
+                "biscuit": "gone",
+                "mitten": "gone_with_child",
+                "sedan_revealed": True,
+                "people_revealed": True,
+                "plow_revealed": True,
+            },
+            "local_prompt": (
+                "A rusted sedan in a snow-filled ditch beside an empty winter road, passenger door "
+                "hanging open, snow gathering on the seats and the hanging door. Empty of figures. "
+                "Fence and field and iron sky. The country keeping nothing. Documentary still."
             ),
         },
     ]
+
+
+# Older registry code expected this name.
+units = shots

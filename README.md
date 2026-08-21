@@ -367,7 +367,7 @@ output/<story_id>/
   manifest.json
   script.txt                 # literary spoken script (authored beats)
   performance.txt            # SSML performance script sent to ElevenLabs
-  visual_plan.json           # visual beats, pauses, continuity facts
+  visual_plan.json           # cinematic shots, locations, local prompts
   narration.mp3
   narration_timing.json
   image_prompts/001.txt ...          # exact prompt sent (plus optional .revised.txt)
@@ -381,14 +381,31 @@ output/<story_id>/
 
 `script.txt` is the literary narration. `performance.txt` is what ElevenLabs
 Multilingual v2 receives: the same spoken words with inferred (or directed)
-`<break time="Ns" />` pauses. `visual_plan.json` lists each illustration
-unit. Episode Two (`biscuit_and_the_red_mitten.yaml`) expands into many
-small visual beats (currently 59 stills, including two reused establishing
-shots); other stories stay one scene per authored beat but still
-get a performance script.
+`<break time="Ns" />` pauses. `visual_plan.json` is the director's inspectable
+shot list. Episode Two (`biscuit_and_the_red_mitten.yaml`) expands into a
+small number of location-aware cinematic shots (about 20 unique stills), not
+one image per sentence. Other stories stay one scene per authored beat but
+still get a performance script.
 
-To regenerate Red Mitten with the new pacing and beats (re-expand, re-narrate,
-re-illustrate). Use `--force` so old 13-scene stills are not kept:
+Image prompts for planned shots describe only the current frame. Global story
+state stays in the director; it is not dumped into every prompt.
+
+Inspect the Red Mitten plan in development before spending image credits:
+
+```bash
+python -m biscuit.cli \
+  --config config/config.example.yaml \
+  --story stories/biscuit_and_the_red_mitten.yaml \
+  --through-stage prompts \
+  --force \
+  --verbose
+```
+
+Then read `output/biscuit_and_the_red_mitten/visual_plan.json` and
+`performance.txt`. Keep `image.provider: development`.
+
+To regenerate the full film after inspecting the plan, use `--force` so older
+stills are not kept:
 
 ```bash
 python -m biscuit.cli \
@@ -434,8 +451,8 @@ layer.
 Image requests include:
 
 - the scene
-- the fully built prompt (visual description, setting, style, character
-  consistency blocks, continuity, 16:9 / no-text guidance)
+- the fully built prompt (for cinematic shots: the local frame photograph,
+  style, in-frame identity; not a global world-state dump)
 - resolved `Character` objects
 - opaque `CharacterReference` paths (if the library provided any)
 
@@ -482,7 +499,8 @@ at `secrets/youtube_client_secret.json`, run once interactively to cache
 - Development image stills and opt-in OpenAI GPT Image (`gpt-image-2`)
 - Development/ElevenLabs narration (`eleven_multilingual_v2`)
 - Narration-driven scene timing
-- FFmpeg assembly with oversampled Ken Burns pan/zoom, fades, and a configurable end hold / fade-to-black
+- FFmpeg assembly with restrained, duration-scaled Ken Burns motion, fades, and a configurable end hold / fade-to-black
+- Cinematic visual plans (`visual_plan.json`) with local shot prompts and location continuity
 - Thumbnail, title, description
 - Optional YouTube uploader behind `enabled: false`
 - Resumable stages, image hash cache, `--regenerate-image N`
@@ -490,6 +508,7 @@ at `secrets/youtube_client_secret.json`, run once interactively to cache
 
 **Intentionally deferred**
 
+- Pixel-level generated-image critic / vision validation
 - Live LLM story expansion (OpenAI/Grok/Claude). Writing rules for that
   future provider are in `stories/STORYTELLING.md`.
 - Additional image vendors (Flux, SD, others)

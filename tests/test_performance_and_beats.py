@@ -14,7 +14,7 @@ from biscuit.prompts import build_image_prompt
 from biscuit.providers.story_template import TemplateStoryProvider
 from biscuit.ssml import spoken_fingerprint, strip_ssml
 from biscuit.story import load_story
-from biscuit.visual_plan import apply_story_plan, plan_for_story
+from biscuit.visual_plan import PLANNER_VERSION, apply_story_plan, plan_for_story, plan_to_dict
 
 
 def test_pacing_varies_and_preserves_words() -> None:
@@ -53,31 +53,97 @@ def test_inferred_pacing_does_not_rewrite_speech() -> None:
     assert spoken_fingerprint(scenes[0].narration) == spoken_fingerprint(performance)
 
 
-def test_red_mitten_visual_plan_preserves_literary_script(repo_root: Path) -> None:
+def _red_mitten_manifest(repo_root: Path):
     spec = load_story(
         repo_root / "stories" / "biscuit_and_the_red_mitten.yaml",
         characters_dir=repo_root / "characters",
     )
-    assert plan_for_story(spec.id) is not None
     manifest = TemplateStoryProvider().expand(spec)
     literary = " ".join(scene.narration for scene in manifest.scenes)
     apply_story_plan(manifest, spec)
-    assert 40 <= len(manifest.scenes) <= 64
+    return spec, manifest, literary
+
+
+def test_red_mitten_visual_plan_preserves_literary_script(repo_root: Path) -> None:
+    spec, manifest, literary = _red_mitten_manifest(repo_root)
+    assert plan_for_story(spec.id) is not None
+    assert PLANNER_VERSION.startswith("cinematic-sequences")
+    unique = [scene for scene in manifest.scenes if not scene.reuse_shot_id]
+    reused = [scene for scene in manifest.scenes if scene.reuse_shot_id]
+    assert 8 <= len({scene.sequence_id for scene in manifest.scenes}) <= 10
+    assert 18 <= len(unique) <= 25
+    assert len(manifest.scenes) == len(unique) + len(reused)
     spoken = " ".join(scene.narration for scene in manifest.scenes)
     assert spoken_fingerprint(spoken) == spoken_fingerprint(literary)
     performance = join_performance_script(manifest.scenes)
     assert spoken_fingerprint(performance) == spoken_fingerprint(spoken)
     assert "<break time=" in performance
-    stopped = next(scene for scene in manifest.scenes if scene.narration == "He stopped.")
-    assert stopped.break_after_seconds >= 1.4
+    stopped_at = performance.find("He stopped.")
+    assert stopped_at != -1
+    nearby = performance[stopped_at : stopped_at + 80]
+    assert "<break time=" in nearby
+    pause = float(nearby.split('time="')[1].split("s")[0])
+    assert pause >= 1.2
     empty = next(scene for scene in manifest.scenes if scene.shot_id == "empty_road")
     assert empty.character_ids == []
+    assert empty.location_id == "empty_road"
+    assert empty.motion == "static"
     prompt = build_image_prompt(empty, characters=manifest.character_map(), spec=spec)
-    assert "no cars" in prompt.lower()
-    assert "World continuity" in prompt
-    assert empty.world_facts
-    reused = [scene for scene in manifest.scenes if scene.reuse_shot_id]
+    assert "World continuity" not in prompt
+    assert "no cars" not in empty.local_prompt.lower()
+    assert "snowplow" not in empty.local_prompt.lower()
+    assert "sedan" not in empty.local_prompt.lower()
+    assert "biscuit" not in empty.local_prompt.lower()
     assert {scene.reuse_shot_id for scene in reused} <= {scene.shot_id for scene in manifest.scenes}
+
+
+def test_red_mitten_prompts_are_local_and_timed(repo_root: Path) -> None:
+    spec, manifest, _literary = _red_mitten_manifest(repo_root)
+    characters = manifest.character_map()
+    by_id = {scene.shot_id: scene for scene in manifest.scenes}
+
+    field = by_id["field_crossing"]
+    field_prompt = build_image_prompt(field, characters=characters, spec=spec)
+    assert field.location_id == "open_field"
+    assert "treeline" in field_prompt.lower() or "tree" in field_prompt.lower()
+    for leaked in ("sedan", "snowplow", "culvert", "woman", "road"):
+        assert leaked not in field.local_prompt.lower()
+
+    discovery = by_id["culvert_discovery"]
+    discovery_prompt = build_image_prompt(discovery, characters=characters, spec=spec)
+    assert "woman" in discovery_prompt.lower()
+    assert "child" in discovery_prompt.lower()
+    assert "snowplow" not in discovery_prompt.lower()
+
+    amber = by_id["amber_far"]
+    people_shots = {"culvert_discovery", "culvert_vigil", "rescue_in_culvert", "running_board"}
+    plow_index = next(index for index, scene in enumerate(manifest.scenes) if scene.shot_id == "amber_far")
+    for scene in manifest.scenes[:plow_index]:
+        prompt = build_image_prompt(scene, characters=characters, spec=spec).lower()
+        assert "snowplow" not in prompt
+        assert " plow" not in prompt
+        assert "amber" not in prompt
+        if scene.shot_id not in people_shots:
+            assert "woman" not in scene.local_prompt.lower()
+    amber_prompt = build_image_prompt(amber, characters=characters, spec=spec).lower()
+    assert "amber" in amber_prompt
+    assert "snowplow" in amber_prompt
+
+    opening = build_image_prompt(by_id["empty_road"], characters=characters, spec=spec)
+    field_shot = field.local_prompt
+    culvert = discovery.local_prompt
+    first_plow = amber.local_prompt
+    assert "two-lane" in opening.lower() or "blacktop" in opening.lower()
+    assert "field" in field_shot.lower()
+    assert "woman" in culvert.lower()
+    assert "amber" in first_plow.lower()
+
+    plan = plan_to_dict(manifest)
+    assert plan["visual_bible"]
+    assert plan["sequences"]
+    assert plan["shots"][0]["critic"]["status"] == "not_implemented"
+    assert all(shot["location_id"] for shot in plan["shots"])
+    assert all(shot["local_prompt"] for shot in plan["shots"])
 
 
 def test_pipeline_writes_performance_script(mini_story_path, test_config) -> None:

@@ -9,11 +9,13 @@ from biscuit.config import VideoConfig
 from biscuit.media import media_duration_seconds
 from biscuit.video import (
     MOTION_FILTER_VERSION,
+    MOTION_FULL_TRAVEL_SECONDS,
     MOTION_HEADROOM,
     MOTION_OVERSAMPLE,
     OUTRO_VERSION,
     _motion_filter,
     last_scene_picture_seconds,
+    motion_travel_fraction,
     outro_tail_seconds,
     oversampled_motion_sizes,
 )
@@ -29,8 +31,9 @@ def test_motion_filter_is_valid_ffmpeg_graph() -> None:
     assert "fade=" in vf
     assert "n/" in vf
     assert MOTION_OVERSAMPLE == 4
-    assert MOTION_HEADROOM == 1.16
-    assert MOTION_FILTER_VERSION.startswith("oversample")
+    assert MOTION_HEADROOM == 1.05
+    assert MOTION_FULL_TRAVEL_SECONDS == 24.0
+    assert MOTION_FILTER_VERSION.startswith("restrained-travel")
 
 
 def test_motion_filter_1080p_uses_oversampled_crop_then_downscale() -> None:
@@ -50,12 +53,44 @@ def test_motion_filter_1080p_uses_oversampled_crop_then_downscale() -> None:
 
 
 def test_motion_filter_diagonal_path_animates_both_axes() -> None:
-    vf = _motion_filter("slow_zoom_in", 4.0, VideoConfig(width=1920, height=1080, fps=30))
+    vf = _motion_filter("slow_zoom_in", 24.0, VideoConfig(width=1920, height=1080, fps=30))
     _scaled_w, _scaled_h, crop_w, crop_h = oversampled_motion_sizes(1920, 1080)
     assert f"crop={crop_w}:{crop_h}:" in vf
-    assert "max(" in vf
-    assert "*(1-n/" in vf
-    assert "*0.55" in vf
+    assert vf.count("*n/") >= 2
+    assert "t/" not in vf
+
+
+def _crop_axis_spans(vf: str) -> tuple[float, float]:
+    import re
+
+    crop = next(part for part in vf.split(",") if part.startswith("crop="))
+    _w, _h, x_expr, y_expr = crop[len("crop=") :].split(":", 3)
+
+    def span(expr: str) -> float:
+        match = re.search(r"\(([-\d.]+)-([-\d.]+)\)", expr)
+        if not match:
+            return 0.0
+        return abs(float(match.group(1)) - float(match.group(2)))
+
+    return span(x_expr), span(y_expr)
+
+
+def test_short_clips_use_less_ken_burns_travel() -> None:
+    config = VideoConfig(width=1920, height=1080, fps=30, fade_seconds=0.2)
+    assert motion_travel_fraction(3.0) == 3.0 / 24.0
+    assert motion_travel_fraction(24.0) == 1.0
+    assert motion_travel_fraction(40.0) == 1.0
+    short = _motion_filter("slow_zoom_in", 3.0, config)
+    long = _motion_filter("slow_zoom_in", 24.0, config)
+    static = _motion_filter("static", 3.0, config)
+    static_crop = next(part for part in static.split(",") if part.startswith("crop="))
+    assert "*n/" not in static_crop
+    short_x, short_y = _crop_axis_spans(short)
+    long_x, long_y = _crop_axis_spans(long)
+    assert long_x > short_x * 3
+    assert long_y > short_y * 3
+    assert short_x > 0
+    assert short_y > 0
 
 
 def test_outro_timing_math_matches_configured_landing() -> None:
