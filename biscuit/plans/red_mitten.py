@@ -918,3 +918,147 @@ VISUAL_BIBLE = {
     entity_id: entity.canonical for entity_id, entity in world().entities.items()
 }
 VISUAL_BIBLE.update({loc.id: loc.description for loc in world().locations.values()})
+
+# Logical production-design plates. Stories never store provider file ids.
+REFERENCE_ASSETS: list[dict[str, Any]] = [
+    {
+        "id": "biscuit_master",
+        "category": "character",
+        "entity_ids": ["biscuit"],
+        "priority": 90,
+        "description": (
+            "Small cream-gold retriever mix, russet ears, scruffy winter fur, faded red "
+            "cloth bandana knotted at the throat. The same dog in every frame."
+        ),
+        "why": "Recurring protagonist. Independent generation keeps inventing a different dog.",
+        "continuity_notes": "Bandana is faded cloth, never as bright as the child's mitten.",
+    },
+    {
+        "id": "empty_road_master",
+        "category": "location",
+        "location_ids": ["empty_road"],
+        "priority": 92,
+        "description": (
+            "Isolated two-lane county blacktop through open Midwest farm country. Packed snow "
+            "on pavement and shoulders. Fence. Field. Iron-gray sky. No traffic."
+        ),
+        "why": "Road geometry and emptiness must stay stable whenever the camera is on the empty road.",
+        "continuity_notes": "No cars, no plow, no culvert. The sedan is not here yet or has already been left behind.",
+    },
+    {
+        "id": "roadside_ditch_master",
+        "category": "location",
+        "location_ids": ["sedan_ditch", "road_bank"],
+        "priority": 100,
+        "description": (
+            "The same stretch of blacktop at the abandoned sedan: packed two-lane, north-side "
+            "ditch, snowbank, and distant tree-line. Establishes road / ditch / shoulder geography."
+        ),
+        "why": (
+            "This is the continuity failure that started the art-direction work. The ditch, "
+            "shoulder, and road kept reinventing themselves between shots."
+        ),
+        "continuity_notes": "North-side ditch. No unexpected traffic. Culvert is not visible from here.",
+    },
+    {
+        "id": "abandoned_car_master",
+        "category": "vehicle",
+        "entity_ids": ["sedan"],
+        "priority": 95,
+        "description": (
+            "The same faded brown-tan four-door American sedan, dull factory paint, rust at "
+            "the wheel wells, nose angled down in the north-side ditch, passenger door hanging open."
+        ),
+        "why": "Vehicle model, damage, orientation, and snow accumulation must not move or change.",
+        "continuity_notes": "It never moves. Passenger door stays open. Snow gathers on it. Not in the field or culvert.",
+    },
+    {
+        "id": "open_field_master",
+        "category": "location",
+        "location_ids": ["open_field", "treeline"],
+        "priority": 88,
+        "description": (
+            "The same open snow-covered field with a distant dark treeline and sparse fence "
+            "far to one side. Road gone unless the camera is still on the bank edge."
+        ),
+        "why": "The field is crossed outbound, return, and during the rescue. Scale and horizon must hold.",
+        "continuity_notes": "No sedan, no snowplow, no culvert, no blacktop in the middle of the field.",
+    },
+    {
+        "id": "creek_woods_master",
+        "category": "location",
+        "location_ids": ["creek_woods"],
+        "priority": 84,
+        "description": (
+            "Darker enclosed winter woods. The same frozen creek, ice at the edges, a crack of black water."
+        ),
+        "why": "The woods close the country in. Creek geometry must stay recognizable on the return journey.",
+        "continuity_notes": "Remote from the road. No sedan, no plow, no two-lane blacktop.",
+    },
+    {
+        "id": "culvert_master",
+        "category": "location",
+        "location_ids": ["culvert_mouth", "culvert_interior"],
+        "priority": 93,
+        "description": (
+            "The same weathered concrete culvert: gray wet throat, low, dim, at creek level. "
+            "Mouth and interior share one geometry."
+        ),
+        "why": "Culvert shape and surrounding terrain were being reinvented. Discovery and rescue share this place.",
+        "continuity_notes": "No road, no sedan, no snowplow. Almost no light inside.",
+    },
+    {
+        "id": "child_master",
+        "category": "character",
+        "entity_ids": ["child"],
+        "priority": 82,
+        "description": (
+            "The same small child of about four, navy snowsuit, dark curls in the hood, "
+            "one red mitten, one bare hand, a plastic cup clipped to the suit."
+        ),
+        "why": "The child is found once and carried home. Identity must not drift.",
+        "continuity_notes": "Never walking after the field. She is held or sitting.",
+    },
+    {
+        "id": "woman_master",
+        "category": "character",
+        "entity_ids": ["woman"],
+        "priority": 80,
+        "description": (
+            "The same young woman, early thirties, slight, thin gray cloth coat, wet jeans, "
+            "indoor shoes packed with snow, dark hair iced at the temples, no gloves."
+        ),
+        "why": "Adult victim identity must remain the same woman from the culvert to the plow.",
+        "continuity_notes": "She does not walk far once found. Sitting or being carried.",
+    },
+    {
+        "id": "man_master",
+        "category": "character",
+        "entity_ids": ["driver"],
+        "priority": 80,
+        "description": (
+            "The same older man, early sixties, solid, canvas chore coat, orange vest, "
+            "heavy gloves, wool cap, gray mustache with ice in it."
+        ),
+        "why": "The driver is the only adult helper. A new face on the return would break the rescue.",
+        "continuity_notes": "Appears only after the plow arrives.",
+    },
+    {
+        "id": "snowplow_master",
+        "category": "vehicle",
+        "entity_ids": ["snowplow"],
+        "priority": 76,
+        "description": "The same tired orange municipal snowplow, blade down, amber hazard lights.",
+        "why": "The plow is a late, important vehicle. It must not appear as a different truck.",
+        "continuity_notes": "Stays on the road. Never in the field, woods, or culvert.",
+    },
+    {
+        "id": "red_mitten_master",
+        "category": "prop",
+        "entity_ids": ["mitten"],
+        "priority": 58,
+        "description": "One brighter red child's knitted mitten, not Biscuit's faded bandana.",
+        "why": "The title object is small and easy to lose or confuse with the bandana.",
+        "continuity_notes": "Brighter than the bandana. One mitten only until it is returned to the child.",
+    },
+]

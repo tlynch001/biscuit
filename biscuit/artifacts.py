@@ -46,6 +46,22 @@ class ArtifactStore:
         return self.root / "visual_plan.json"
 
     @property
+    def art_direction_path(self) -> Path:
+        return self.root / "art_direction.md"
+
+    @property
+    def art_direction_json_path(self) -> Path:
+        return self.root / "art_direction.json"
+
+    @property
+    def reference_registry_path(self) -> Path:
+        return self.root / "reference_assets.json"
+
+    @property
+    def references_dir(self) -> Path:
+        return self.root / "references"
+
+    @property
     def narration_path(self) -> Path:
         return self.root / "narration.mp3"
 

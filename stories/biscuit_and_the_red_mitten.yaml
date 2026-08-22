@@ -1,6 +1,9 @@
 id: biscuit_and_the_red_mitten
 title: Biscuit and the Red Mitten
 target_duration_seconds: 420
+art_direction:
+  mode: directed
+  max_references_per_shot: 3
 tone: stark American winter gothic, spare and morally serious
 setting:
   location: two-lane county blacktop through open farm country

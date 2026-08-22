@@ -372,3 +372,94 @@ def test_imagine_2_posts_edits_with_data_uri(
     assert image["url"].startswith("data:image/png;base64,")
     assert called["json"]["model"] == "grok-imagine-image-2.0"
     assert called["json"]["prompt"] == "exact biscuit prompt that must be sent"
+
+
+def test_quality_model_uses_file_ids_on_edits(
+    xai_provider: XAIImageProvider, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request, output = _request(tmp_path)
+    request.references = [
+        CharacterReference(
+            path=tmp_path / "missing.png",
+            kind="art_direction",
+            asset_id="roadside_ditch_master",
+            provider_file_id="file_ditch",
+        ),
+        CharacterReference(
+            path=tmp_path / "missing2.png",
+            kind="art_direction",
+            asset_id="abandoned_car_master",
+            provider_file_id="file_car",
+        ),
+        CharacterReference(
+            path=tmp_path / "missing3.png",
+            kind="art_direction",
+            asset_id="biscuit_master",
+            provider_file_id="file_biscuit",
+        ),
+    ]
+    called: dict = {}
+
+    def fake_post(url, **kwargs):
+        called["url"] = url
+        called["json"] = kwargs.get("json")
+        return _FakeResponse(200, _success_payload())
+
+    monkeypatch.setattr("requests.post", fake_post)
+    xai_provider.generate(request, output)
+    assert called["url"] == "https://api.x.ai/v1/images/edits"
+    assert called["json"]["images"] == [
+        {"file_id": "file_ditch"},
+        {"file_id": "file_car"},
+        {"file_id": "file_biscuit"},
+    ]
+    assert "image" not in called["json"]
+
+
+def test_single_file_id_uses_image_object(
+    xai_provider: XAIImageProvider, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    request, output = _request(tmp_path)
+    request.references = [
+        CharacterReference(
+            path=tmp_path / "missing.png",
+            kind="art_direction",
+            asset_id="biscuit_master",
+            provider_file_id="file_biscuit",
+        )
+    ]
+    called: dict = {}
+
+    def fake_post(url, **kwargs):
+        called["url"] = url
+        called["json"] = kwargs.get("json")
+        return _FakeResponse(200, _success_payload())
+
+    monkeypatch.setattr("requests.post", fake_post)
+    xai_provider.generate(request, output)
+    assert called["url"] == "https://api.x.ai/v1/images/edits"
+    assert called["json"]["image"] == {"file_id": "file_biscuit"}
+    assert "images" not in called["json"]
+
+
+def test_xai_upload_reference_posts_files_api(
+    xai_provider: XAIImageProvider, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = tmp_path / "biscuit_master.png"
+    Image.new("RGB", (16, 9), (80, 80, 80)).save(source)
+    called: dict = {}
+
+    def fake_post(url, **kwargs):
+        called["url"] = url
+        called["files"] = kwargs.get("files")
+        called["data"] = kwargs.get("data")
+        called["headers"] = kwargs.get("headers")
+        return _FakeResponse(200, {"id": "file_uploaded_1", "filename": source.name})
+
+    monkeypatch.setattr("requests.post", fake_post)
+    file_id = xai_provider.upload_reference(source)
+    assert file_id == "file_uploaded_1"
+    assert called["url"] == "https://api.x.ai/v1/files"
+    assert called["data"]["purpose"] == "assistants"
+    assert "Authorization" in called["headers"]
+    assert called["headers"]["Authorization"].startswith("Bearer ")

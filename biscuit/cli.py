@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 from biscuit.config import load_config
-from biscuit.exceptions import BiscuitError, ConfigurationError
+from biscuit.exceptions import ArtDirectionError, BiscuitError, ConfigurationError
 from biscuit.logging_setup import configure_logging
 from biscuit.pipeline import StoryPipeline
 from biscuit.stages import STAGES
@@ -84,6 +84,65 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "Repeatable. Paid image providers otherwise reuse stale stills to avoid extra API spend."
         ),
     )
+    parser.add_argument(
+        "--register-reference",
+        default=None,
+        metavar="ID",
+        help="Register a local image as logical reference asset ID (requires --reference-file).",
+    )
+    parser.add_argument(
+        "--reference-file",
+        default=None,
+        help="Local image path used with --register-reference.",
+    )
+    parser.add_argument(
+        "--reference-category",
+        default=None,
+        choices=("character", "location", "vehicle", "prop", "environmental", "composition"),
+        help="Optional category when registering a reference.",
+    )
+    parser.add_argument(
+        "--approve-reference",
+        action="append",
+        dest="approve_references",
+        metavar="ID",
+        default=None,
+        help="Mark a reference asset approved. Repeatable.",
+    )
+    parser.add_argument(
+        "--reject-reference",
+        action="append",
+        dest="reject_references",
+        metavar="ID",
+        default=None,
+        help="Mark a reference asset rejected. Repeatable.",
+    )
+    parser.add_argument(
+        "--generate-reference",
+        action="append",
+        dest="generate_references",
+        metavar="ID",
+        default=None,
+        help="Generate a candidate image for a planned reference. Does not approve it.",
+    )
+    parser.add_argument(
+        "--promote-shot",
+        type=_positive_scene_index,
+        default=None,
+        metavar="N",
+        help="Promote generated scene N to a composition reference (requires --as-reference).",
+    )
+    parser.add_argument(
+        "--as-reference",
+        default=None,
+        metavar="ID",
+        help="Logical asset id used with --promote-shot.",
+    )
+    parser.add_argument(
+        "--force-references",
+        action="store_true",
+        help="Allow replacing approved reference images. Ordinary --force will not do this.",
+    )
     return parser
 
 
@@ -134,9 +193,21 @@ def main(argv: list[str] | None = None) -> int:
             dry_run=args.dry_run,
             new_run=args.new_run,
             regenerate_images=args.regenerate_images or [],
+            register_reference=args.register_reference,
+            reference_file=args.reference_file,
+            reference_category=args.reference_category,
+            approve_references=args.approve_references or [],
+            reject_references=args.reject_references or [],
+            generate_references=args.generate_references or [],
+            promote_shot=args.promote_shot,
+            as_reference=args.as_reference,
+            force_references=args.force_references,
         )
     except ConfigurationError as exc:
         logger.error("Configuration error: %s", exc)
+        return 2
+    except ArtDirectionError as exc:
+        logger.error("Art direction: %s", exc)
         return 2
     except BiscuitError as exc:
         logger.exception("Fatal error: %s", exc)

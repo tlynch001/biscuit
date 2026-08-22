@@ -9,6 +9,10 @@ This file is the creative specification for Biscuit stories. Phase 1 does not
 generate prose (the `template` story provider copies authored beats). A future
 LLM story provider should load this guide. Human authors should too.
 
+Visual continuity — reference assets, human approval, and how shot prompts
+use an approved library — is documented in [`ART_DIRECTION.md`](ART_DIRECTION.md).
+Prose rules stay here. The picture department lives there.
+
 ## Quality benchmark, not a template
 
 `stories/biscuit_in_the_snow.yaml` is Episode One and the benchmark for **care

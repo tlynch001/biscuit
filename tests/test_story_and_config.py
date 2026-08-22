@@ -37,6 +37,7 @@ def test_red_mitten_story_loads_and_resolves_biscuit(repo_root: Path) -> None:
     assert any("bandana" in phrase.lower() for phrase in biscuit.appearance_phrases())
     ids = [character.id for character in spec.characters]
     assert ids == ["biscuit", "woman", "child", "driver"]
+    assert spec.art_direction.mode == "directed"
     assert spec.constraints.min_scenes <= len(spec.beats) <= spec.constraints.max_scenes
     assert all(beat.narration and beat.visual for beat in spec.beats)
     joined = " ".join(beat.narration for beat in spec.beats).lower()

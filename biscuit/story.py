@@ -9,6 +9,7 @@ import yaml
 
 from biscuit.exceptions import StoryValidationError
 from biscuit.models import (
+    ArtDirectionSpec,
     Beat,
     Character,
     CharacterReference,
@@ -184,6 +185,12 @@ def parse_story(
             f"({constraints.min_scenes}-{constraints.max_scenes})."
         )
 
+    try:
+        art_direction = ArtDirectionSpec.from_dict(raw.get("art_direction"))
+    except ValueError as exc:
+        errors.append(str(exc))
+        art_direction = ArtDirectionSpec()
+
     if errors:
         raise StoryValidationError("Story validation failed:\n- " + "\n- ".join(errors))
 
@@ -198,5 +205,6 @@ def parse_story(
         characters=characters,
         beats=beats,
         constraints=constraints,
+        art_direction=art_direction,
         source_path=source_path,
     )

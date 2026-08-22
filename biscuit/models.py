@@ -21,22 +21,34 @@ def _as_str_list(value: Any) -> list[str]:
 
 @dataclass
 class CharacterReference:
-    """Opaque handle to a visual reference file for a character.
+    """Opaque handle to a visual reference file.
 
-    Providers that support reference images (future Flux/SD/API-specific
-    character refs) receive these objects. Nothing about a vendor's
-    ``--cref`` / image-to-image protocol lives here.
+    Providers that support reference images receive these objects.
+    Vendor file ids may travel here at request time; story YAML and visual
+    plans keep only logical asset names.
     """
 
     path: Path
     kind: str = "portrait"
+    asset_id: str = ""
+    provider_file_id: str = ""
 
     def to_dict(self) -> dict[str, Any]:
-        return {"path": str(self.path), "kind": self.kind}
+        payload = {"path": str(self.path), "kind": self.kind}
+        if self.asset_id:
+            payload["asset_id"] = self.asset_id
+        if self.provider_file_id:
+            payload["provider_file_id"] = self.provider_file_id
+        return payload
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> CharacterReference:
-        return cls(path=Path(data["path"]), kind=str(data.get("kind", "portrait")))
+        return cls(
+            path=Path(data["path"]),
+            kind=str(data.get("kind", "portrait")),
+            asset_id=str(data.get("asset_id") or ""),
+            provider_file_id=str(data.get("provider_file_id") or ""),
+        )
 
 
 @dataclass
@@ -198,6 +210,33 @@ class NarrationGuidance:
 
 
 @dataclass
+class ArtDirectionSpec:
+    """How illustration should treat reference assets for this story."""
+
+    mode: str = "automatic"
+    max_references_per_shot: int = 3
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "mode": self.mode,
+            "max_references_per_shot": self.max_references_per_shot,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> ArtDirectionSpec:
+        data = data or {}
+        if isinstance(data, str):
+            return cls(mode=data)
+        mode = str(data.get("mode") or "automatic").strip().lower() or "automatic"
+        if mode not in {"automatic", "directed"}:
+            raise ValueError("art_direction.mode must be 'automatic' or 'directed'.")
+        limit = int(data.get("max_references_per_shot") or 3)
+        if limit < 1:
+            raise ValueError("art_direction.max_references_per_shot must be >= 1.")
+        return cls(mode=mode, max_references_per_shot=min(limit, 3))
+
+
+@dataclass
 class SceneConstraints:
     min_scenes: int = 1
     max_scenes: int = 24
@@ -266,6 +305,7 @@ class StorySpec:
     characters: list[Character]
     beats: list[Beat]
     constraints: SceneConstraints
+    art_direction: ArtDirectionSpec = field(default_factory=ArtDirectionSpec)
     source_path: Path | None = None
 
     def character_map(self) -> dict[str, Character]:
@@ -283,6 +323,7 @@ class StorySpec:
             "characters": [character.to_dict() for character in self.characters],
             "beats": [beat.to_dict() for beat in self.beats],
             "constraints": self.constraints.to_dict(),
+            "art_direction": self.art_direction.to_dict(),
             "source_path": str(self.source_path) if self.source_path else None,
         }
 
@@ -326,6 +367,9 @@ class Scene:
     unspoken: bool = False
     travel_path: list[str] = field(default_factory=list)
     hold_seconds: float = 0.0
+    reference_assets: list[str] = field(default_factory=list)
+    reference_candidates: list[str] = field(default_factory=list)
+    reference_selection: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -371,6 +415,9 @@ class Scene:
             "unspoken": self.unspoken,
             "travel_path": list(self.travel_path),
             "hold_seconds": self.hold_seconds,
+            "reference_assets": list(self.reference_assets),
+            "reference_candidates": list(self.reference_candidates),
+            "reference_selection": dict(self.reference_selection),
         }
 
     @classmethod
@@ -413,6 +460,13 @@ class Scene:
             unspoken=bool(data.get("unspoken", False)),
             travel_path=_as_str_list(data.get("travel_path")),
             hold_seconds=float(data.get("hold_seconds") or 0.0),
+            reference_assets=_as_str_list(data.get("reference_assets")),
+            reference_candidates=_as_str_list(data.get("reference_candidates")),
+            reference_selection=(
+                dict(data.get("reference_selection") or {})
+                if isinstance(data.get("reference_selection"), dict)
+                else {}
+            ),
         )
 
 

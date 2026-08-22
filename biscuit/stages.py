@@ -10,6 +10,7 @@ STAGES: tuple[str, ...] = (
     "parse",
     "expand",
     "prompts",
+    "direct",
     "narrate",
     "illustrate",
     "assemble",
