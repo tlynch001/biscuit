@@ -42,3 +42,7 @@ class VideoAssemblyError(BiscuitError):
 
 class ArtifactError(BiscuitError):
     """Raised when expected pipeline artifacts are missing or unreadable."""
+
+
+class ArtDirectionError(BiscuitError):
+    """Raised when directed illustration cannot proceed or a registry action fails."""

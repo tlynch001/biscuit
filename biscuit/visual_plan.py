@@ -22,13 +22,20 @@ from biscuit.world import validate_spatial_plan, world_to_dict
 
 logger = logging.getLogger(__name__)
 
-PLANNER_VERSION = "cinematic-sequences-v3"
+PLANNER_VERSION = "cinematic-sequences-v4"
 
 PlanLoader = Callable[[], dict[str, Any]]
 
 
 def _plan_registry() -> dict[str, PlanLoader]:
-    from biscuit.plans.red_mitten import PLANNER_ID, SEQUENCES, VISUAL_BIBLE, shots, world
+    from biscuit.plans.red_mitten import (
+        PLANNER_ID,
+        REFERENCE_ASSETS,
+        SEQUENCES,
+        VISUAL_BIBLE,
+        shots,
+        world,
+    )
 
     return {
         PLANNER_ID: lambda: {
@@ -36,6 +43,7 @@ def _plan_registry() -> dict[str, PlanLoader]:
             "sequences": list(SEQUENCES),
             "world": world(),
             "units": shots(),
+            "reference_assets": list(REFERENCE_ASSETS),
         },
     }
 
@@ -114,6 +122,7 @@ def apply_story_plan(manifest: StoryManifest, spec: StorySpec) -> StoryManifest:
             travel_path=list(unit.get("travel_path") or []),
             hold_seconds=hold,
             target_duration_seconds=hold or None,
+            reference_assets=list(unit.get("reference_assets") or []),
         )
         scenes.append(scene)
         shot_index[shot_id] = index
@@ -148,19 +157,26 @@ def plan_to_dict(manifest: StoryManifest) -> dict[str, Any]:
         "visual_bible": plan.get("visual_bible") or {},
         "sequences": plan.get("sequences") or [],
         "shots": [_shot_record(scene) for scene in manifest.scenes],
+        "reference_assets": [
+            {key: value for key, value in dict(item).items() if key != "provider_file_id"}
+            for item in (plan.get("reference_assets") or [])
+        ],
     }
     if world is not None:
         payload["world"] = world_to_dict(world)
         payload["journeys"] = dict(world.journeys)
         payload["image_references"] = {
             "abstraction": (
-                "Optional CharacterReference(kind='shot_continuity') from a previous "
-                "shot PNG named by reference_shot_id. Providers decide whether to use it."
+                "Directed stories select up to three logical reference_assets per shot. "
+                "The registry resolves those names to local files and optional provider "
+                "file ids. Automatic stories may still pass CharacterReference("
+                "kind='shot_continuity') from an authored reference_shot_id."
             ),
             "xai": (
-                "Official xAI image editing (POST /v1/images/edits) is documented for "
-                "grok-imagine-image-2.x. The default grok-imagine-image-quality model "
-                "has no documented edit path; Biscuit ignores references for that model."
+                "Approved registry assets are uploaded once via POST /v1/files and then "
+                "sent to POST /v1/images/edits as file_id / images[]. Local-path data-URI "
+                "edits remain available for grok-imagine-image-2.x. Text-only generation "
+                "is unchanged when no references are selected."
             ),
             "openai": "Existing /v1/images/edits multipart path if reference files exist.",
         }
@@ -190,6 +206,9 @@ def _shot_record(scene: Scene) -> dict[str, Any]:
         "motion": scene.motion,
         "reuse": scene.reuse_shot_id or None,
         "reference_shot_id": scene.reference_shot_id or None,
+        "reference_assets": list(scene.reference_assets),
+        "reference_candidates": list(scene.reference_candidates),
+        "reference_selection": dict(scene.reference_selection) or None,
         "travel_path": list(scene.travel_path) or None,
         "continuity": dict(scene.continuity),
         "critic": critic_record(scene),

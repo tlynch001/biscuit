@@ -47,8 +47,13 @@ FFmpeg assembly  -->  video.mp4
    +--> optional YouTube upload (disabled by default)
 ```
 
-Stages: `parse` → `expand` → `prompts` → `narrate` → `illustrate` →
-`assemble` → `package` → `publish`.
+Stages: `parse` → `expand` → `prompts` → `direct` → `narrate` →
+`illustrate` → `assemble` → `package` → `publish`.
+
+`direct` is the art-direction checkpoint. Automatic stories write a short
+note and continue. Directed stories propose a reference-asset library and
+stop being able to illustrate until those assets are approved. See
+[`stories/ART_DIRECTION.md`](stories/ART_DIRECTION.md).
 
 Each expensive stage writes inspectable artifacts. The pipeline is resumable:
 rerunning later stages reuses audio, images, and prompts unless you pass
@@ -58,6 +63,8 @@ rerunning later stages reuses audio, images, and prompts unless you pass
 biscuit/
   cli.py              thin CLI
   pipeline.py         stage orchestrator
+  references.py       reference-asset registry and shot selection
+  art_direction.py    planner, checklist, directed-illustration gate
   config.py           YAML + .env (secrets by env-var name only)
   story.py            YAML schema, validation, character resolution
   models.py           StorySpec, Character, Scene, StoryManifest, timing
@@ -79,6 +86,8 @@ image paths travel with the character. Image providers receive opaque
 do not leak into the rest of the app.
 
 Writing quality for Biscuit stories lives in [`stories/STORYTELLING.md`](stories/STORYTELLING.md).
+Art direction — reference assets, approval, and the directed illustration
+checkpoint — lives in [`stories/ART_DIRECTION.md`](stories/ART_DIRECTION.md).
 Episode One (`stories/biscuit_in_the_snow.yaml`) is the quality benchmark, not
 a plot to clone. The current story provider is `template` (authored beats);
 there is no production LLM story writer yet.
@@ -289,6 +298,12 @@ Useful flags:
 | `--force` | Ignore caches inside the selected range |
 | `--new-run` | Isolate this run in a timestamped subdirectory |
 | `--regenerate-image N` | Rebuild only scene `N` (1-based, repeatable). Other scene images stay cached. |
+| `--register-reference ID` | Copy a local image into the story reference library (`--reference-file` required). |
+| `--approve-reference ID` | Mark a planned or candidate master approved. Repeatable. |
+| `--reject-reference ID` | Reject a candidate. Repeatable. |
+| `--generate-reference ID` | Create a candidate plate. Does not approve it. |
+| `--promote-shot N` | Promote generated scene `N` to a composition anchor (`--as-reference` required). |
+| `--force-references` | Allow replacing approved masters. Ordinary `--force` will not. |
 
 Examples:
 
@@ -354,8 +369,8 @@ python -m biscuit.cli \
   --verbose
 ```
 
-Stages: `parse`, `expand`, `prompts`, `narrate`, `illustrate`, `assemble`,
-`package`, `publish`.
+Stages: `parse`, `expand`, `prompts`, `direct`, `narrate`, `illustrate`,
+`assemble`, `package`, `publish`.
 
 ## Generated artifacts
 
@@ -368,6 +383,10 @@ output/<story_id>/
   script.txt                 # literary spoken script (authored beats)
   performance.txt            # SSML performance script sent to ElevenLabs
   visual_plan.json           # cinematic shots, locations, local prompts
+  art_direction.md           # human-readable reference / continuity plan
+  art_direction.json         # machine-readable shot-to-reference assignments
+  reference_assets.json      # persistent registry (status, paths, cached file ids)
+  references/                # approved or candidate master images
   narration.mp3
   narration_timing.json
   image_prompts/001.txt ...          # exact prompt sent (plus optional .revised.txt)
@@ -396,24 +415,39 @@ state stays in the director; it is not dumped into every prompt. Recurring
 objects inherit a canonical identity (the same brown-tan sedan, not "an
 abandoned car"). Optional `reference_shot_id` values are passed to image
 providers as `CharacterReference(kind="shot_continuity")` when the prior PNG
-exists. xAI's default `grok-imagine-image-quality` model has no documented
-image-edit API, so those references are ignored there; `grok-imagine-image-2.x`
-can use `POST /v1/images/edits`. Continuity for the default model is textual
-and topological.
+exists. Directed stories prefer approved **reference assets** (logical names
+such as `abandoned_car_master`) over generated-shot chaining. xAI uploads
+those masters once via `POST /v1/files` and sends up to three `file_id`
+values to `POST /v1/images/edits`. Local-path data-URI edits remain available
+for `grok-imagine-image-2.x`. Text-only generation is unchanged when no
+references are selected.
 
-Inspect the Red Mitten plan in development before spending image credits:
+Inspect the Red Mitten visual and art-direction plan in development
+**before** spending image credits. This stops after planning; it does not
+generate reference plates, finished stills, or video:
 
 ```bash
 python -m biscuit.cli \
   --config config/config.example.yaml \
   --story stories/biscuit_and_the_red_mitten.yaml \
-  --through-stage prompts \
-  --force \
+  --through-stage direct \
   --verbose
 ```
 
-Then read `output/biscuit_and_the_red_mitten/visual_plan.json` and
-`performance.txt`. Keep `image.provider: development`.
+Then read:
+
+- `output/biscuit_and_the_red_mitten/visual_plan.json`
+- `output/biscuit_and_the_red_mitten/art_direction.md`
+- `output/biscuit_and_the_red_mitten/art_direction.json`
+- `output/biscuit_and_the_red_mitten/reference_assets.json`
+
+Keep `image.provider: development`. Do not run `--from-stage illustrate`
+until the required masters are registered and approved. Ordinary `--force`
+will not delete approved reference images.
+
+`--through-stage prompts` still writes image prompts. For directed stories
+it also writes a preliminary art-direction plan. `--through-stage direct`
+is the explicit human checkpoint.
 
 If unspoken geography holds were generated with a previous build, re-run from
 `narrate` so scene durations pick up planned `hold_seconds`. Existing ElevenLabs
@@ -519,6 +553,7 @@ at `secrets/youtube_client_secret.json`, run once interactively to cache
 - Narration-driven scene timing
 - FFmpeg assembly with restrained, duration-scaled Ken Burns motion, fades, and a configurable end hold / fade-to-black
 - Cinematic visual plans (`visual_plan.json`) with local shot prompts, location topology, persistent entities, and implied travel shots
+- Human-directed reference assets / art direction (`art_direction.md`, `reference_assets.json`)
 - Thumbnail, title, description
 - Optional YouTube uploader behind `enabled: false`
 - Resumable stages, image hash cache, `--regenerate-image N`

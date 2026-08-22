@@ -15,7 +15,16 @@ from pathlib import Path
 
 from biscuit.artifacts import ArtifactStore, new_run_id
 from biscuit.config import AppConfig
-from biscuit.exceptions import ArtifactError, ConfigurationError, ImageGenerationError
+from biscuit.art_direction import (
+    apply_reference_prompts,
+    art_direction_payload,
+    assign_shot_references,
+    propose_assets,
+    reference_generation_prompt,
+    render_art_direction_markdown,
+    require_approved_references,
+)
+from biscuit.exceptions import ArtifactError, ArtDirectionError, ConfigurationError, ImageGenerationError
 from biscuit.hashing import sha256_file, sha256_json
 from biscuit.models import Character, CharacterReference, Scene, StoryManifest, StorySpec, TimingDocument, join_script
 from biscuit.media import insert_silence_segments
@@ -28,6 +37,7 @@ from biscuit.stages import STAGES, stage_index
 from biscuit.story import load_story
 from biscuit.timing import TIMING_LAYOUT, apply_timing_to_scenes, ensure_unspoken_hold_layout
 from biscuit.video import MOTION_FILTER_VERSION, OUTRO_VERSION, assemble_video
+from biscuit.references import ReferenceRegistry, to_character_references
 from biscuit.visual_plan import PLANNER_VERSION, apply_story_plan, plan_for_story, plan_to_dict
 from biscuit.youtube import publish_video
 
@@ -92,6 +102,15 @@ class StoryPipeline:
         new_run: bool = False,
         store: ArtifactStore | None = None,
         regenerate_images: list[int] | None = None,
+        register_reference: str | None = None,
+        reference_file: str | Path | None = None,
+        reference_category: str | None = None,
+        approve_references: list[str] | None = None,
+        reject_references: list[str] | None = None,
+        generate_references: list[str] | None = None,
+        promote_shot: int | None = None,
+        as_reference: str | None = None,
+        force_references: bool = False,
     ) -> StoryManifest:
         self._validate_stage_range(from_stage, through_stage)
         spec = load_story(story_path, characters_dir=self._config.characters_dir)
@@ -130,6 +149,34 @@ class StoryPipeline:
 
         if should("prompts"):
             manifest = self._run_prompts(spec, manifest, store, force)
+        registry = self._load_registry(spec, store)
+        self._apply_reference_actions(
+            spec,
+            manifest,
+            store,
+            registry,
+            register_reference=register_reference,
+            reference_file=reference_file,
+            reference_category=reference_category,
+            approve_references=approve_references or [],
+            reject_references=reject_references or [],
+            promote_shot=promote_shot,
+            as_reference=as_reference,
+            force_references=force_references,
+        )
+        if should("direct"):
+            manifest = self._run_direct(spec, manifest, store, registry, force=force)
+        if generate_references:
+            self._generate_reference_assets(
+                spec,
+                manifest,
+                store,
+                registry,
+                generate_references,
+                force_references=force_references,
+            )
+            if should("direct") or store.art_direction_path.exists():
+                manifest = self._run_direct(spec, manifest, store, registry, force=False)
         if should("narrate"):
             manifest = self._run_narrate(manifest, store, force)
         if regenerate_images and not should("illustrate"):
@@ -138,7 +185,7 @@ class StoryPipeline:
             )
         if should("illustrate"):
             manifest = self._run_illustrate(
-                manifest, store, force, regenerate_images=regenerate_images or []
+                spec, manifest, store, force, regenerate_images=regenerate_images or []
             )
         if should("assemble"):
             self._run_assemble(manifest, store, force)
@@ -186,6 +233,7 @@ class StoryPipeline:
                 "story": sha256_file(story_path),
                 "planner": PLANNER_VERSION,
                 "has_visual_plan": bool(plan_for_story(spec.id)),
+                "art_direction": spec.art_direction.mode,
             }
         )
 
@@ -214,7 +262,199 @@ class StoryPipeline:
         if manifest.performance_text:
             store.write_text(store.performance_path, manifest.performance_text)
         store.write_json(store.visual_plan_path, plan_to_dict(manifest))
+        if spec.art_direction.mode == "directed":
+            registry = self._load_registry(spec, store)
+            self._sync_art_direction(spec, manifest, store, registry)
         return manifest
+
+    def _load_registry(self, spec: StorySpec, store: ArtifactStore) -> ReferenceRegistry:
+        registry = ReferenceRegistry.load(
+            store.reference_registry_path,
+            story_id=spec.id,
+            mode=spec.art_direction.mode,
+        )
+        registry.mode = spec.art_direction.mode
+        registry.max_references_per_shot = spec.art_direction.max_references_per_shot
+        return registry
+
+    def _sync_art_direction(
+        self,
+        spec: StorySpec,
+        manifest: StoryManifest,
+        store: ArtifactStore,
+        registry: ReferenceRegistry,
+    ) -> dict:
+        for proposed in propose_assets(manifest, spec):
+            registry.merge_proposal(proposed)
+        selections = assign_shot_references(manifest, registry)
+        apply_reference_prompts(manifest, spec, registry)
+        for scene in manifest.scenes:
+            prompt_path = store.scene_prompt_path(scene.index)
+            store.write_text(prompt_path, scene.image_prompt)
+            scene.image_prompt_path = store.relative(prompt_path)
+        registry.save(store.reference_registry_path)
+        store.write_text(
+            store.art_direction_path,
+            render_art_direction_markdown(
+                spec=spec, manifest=manifest, registry=registry, selections=selections
+            ),
+        )
+        store.write_json(
+            store.art_direction_json_path,
+            art_direction_payload(
+                spec=spec, manifest=manifest, registry=registry, selections=selections
+            ),
+        )
+        store.write_manifest(manifest)
+        store.write_json(store.visual_plan_path, plan_to_dict(manifest))
+        logger.info(
+            "Art direction %s: %d proposed assets, wrote %s",
+            registry.mode,
+            len(registry.assets),
+            store.art_direction_path,
+        )
+        return selections
+
+    def _run_direct(
+        self,
+        spec: StorySpec,
+        manifest: StoryManifest,
+        store: ArtifactStore,
+        registry: ReferenceRegistry,
+        *,
+        force: bool,
+    ) -> StoryManifest:
+        del force  # approved assets are never wiped by a general --force
+        self._sync_art_direction(spec, manifest, store, registry)
+        return manifest
+
+    def _apply_reference_actions(
+        self,
+        spec: StorySpec,
+        manifest: StoryManifest,
+        store: ArtifactStore,
+        registry: ReferenceRegistry,
+        *,
+        register_reference: str | None,
+        reference_file: str | Path | None,
+        reference_category: str | None,
+        approve_references: list[str],
+        reject_references: list[str],
+        promote_shot: int | None,
+        as_reference: str | None,
+        force_references: bool,
+    ) -> None:
+        del spec, force_references
+        if register_reference:
+            if not reference_file:
+                raise ConfigurationError("--register-reference requires --reference-file.")
+            registry.register_local(
+                register_reference,
+                Path(reference_file),
+                store_root=store.root,
+                category=reference_category,
+            )
+            logger.info("Registered local reference %s from %s", register_reference, reference_file)
+        if promote_shot is not None:
+            if not as_reference:
+                raise ConfigurationError("--promote-shot requires --as-reference ID.")
+            scene = next((item for item in manifest.scenes if item.index == promote_shot), None)
+            if scene is None:
+                raise ArtDirectionError(f"No scene with 1-based index {promote_shot}.")
+            image_path = store.scene_image_path(scene.index)
+            registry.promote_shot(
+                asset_id=as_reference,
+                shot_id=scene.shot_id or scene.id,
+                image_path=image_path,
+                store_root=store.root,
+            )
+            logger.info(
+                "Promoted scene %s (%s) to reference %s",
+                scene.index,
+                scene.shot_id or scene.id,
+                as_reference,
+            )
+        for asset_id in approve_references:
+            registry.approve(asset_id, store_root=store.root)
+            logger.info("Approved reference %s", asset_id)
+        for asset_id in reject_references:
+            registry.reject(asset_id)
+            logger.info("Rejected reference %s", asset_id)
+        if register_reference or approve_references or reject_references or promote_shot is not None:
+            registry.save(store.reference_registry_path)
+
+    def _generate_reference_assets(
+        self,
+        spec: StorySpec,
+        manifest: StoryManifest,
+        store: ArtifactStore,
+        registry: ReferenceRegistry,
+        asset_ids: list[str],
+        *,
+        force_references: bool,
+    ) -> None:
+        if not registry.assets:
+            for proposed in propose_assets(manifest, spec):
+                registry.merge_proposal(proposed)
+        for asset_id in asset_ids:
+            asset = registry.get(asset_id)
+            if asset.status == "approved" and not force_references:
+                raise ArtDirectionError(
+                    f"Refusing to regenerate approved reference {asset_id!r}. "
+                    "Pass --force-references if you intend to replace it."
+                )
+            dest = store.references_dir / "candidates" / f"{asset_id}.png"
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            prompt = reference_generation_prompt(asset, spec)
+            scene = Scene(
+                id=f"reference_{asset_id}",
+                index=0,
+                beat_id="",
+                title=asset_id,
+                narration="",
+                visual_description=asset.description,
+                character_ids=[],
+                emotion="reference",
+                image_prompt=prompt,
+            )
+            logger.info("Generating reference candidate %s via %s", asset_id, self._image_provider.name)
+            self._image_provider.generate(
+                ImageRequest(
+                    scene=scene,
+                    prompt=prompt,
+                    characters=[],
+                    width=self._config.image.width,
+                    height=self._config.image.height,
+                ),
+                dest,
+            )
+            registry.record_generated_candidate(
+                asset_id, dest, store_root=store.root, provider=self._image_provider.name
+            )
+        registry.save(store.reference_registry_path)
+
+    def _ensure_reference_uploads(self, registry: ReferenceRegistry, store: ArtifactStore) -> None:
+        uploader = getattr(self._image_provider, "upload_reference", None)
+        if not callable(uploader):
+            return
+        provider_name = self._image_provider.name
+        for asset in registry.assets.values():
+            if not asset.is_approved():
+                continue
+            path = asset.resolved_path(store.root)
+            if path is None or not path.is_file():
+                continue
+            if registry.cached_upload_is_valid(asset, store.root, provider=provider_name):
+                continue
+            file_id = uploader(path)
+            registry.record_upload(
+                asset.id,
+                provider=provider_name,
+                provider_file_id=str(file_id),
+                content_hash=sha256_file(path),
+            )
+            logger.info("Cached %s file id for %s", provider_name, asset.id)
+        registry.save(store.reference_registry_path)
 
     def _run_narrate(self, manifest: StoryManifest, store: ArtifactStore, force: bool) -> StoryManifest:
         spoken = join_script(manifest.scenes)
@@ -309,11 +549,17 @@ class StoryPipeline:
 
     def _run_illustrate(
         self,
+        spec: StorySpec,
         manifest: StoryManifest,
         store: ArtifactStore,
         force: bool,
         regenerate_images: list[int],
     ) -> StoryManifest:
+        registry = self._load_registry(spec, store)
+        if spec.art_direction.mode == "directed":
+            self._sync_art_direction(spec, manifest, store, registry)
+            require_approved_references(manifest, registry, store.root)
+            self._ensure_reference_uploads(registry, store)
         if self._config.image.provider == "openai":
             self._config.image.openai.resolve_api_key(required=True)
         elif self._config.image.provider == "xai":
@@ -351,7 +597,7 @@ class StoryPipeline:
 
             present = [characters[cid] for cid in scene.character_ids if cid in characters]
             output = store.scene_image_path(scene.index)
-            cache_key = self._image_cache_hash(scene, present)
+            cache_key = self._image_cache_hash(scene, present, registry=registry, store=store)
             stamp_path = store.work_dir / f"{scene.index:03d}.image.hash"
             force_this = force or scene.index in regenerate_set
             stamp = _parse_image_stamp(stamp_path)
@@ -415,10 +661,15 @@ class StoryPipeline:
                         scene.reuse_shot_id,
                     )
                 else:
-                    references = [ref for character in present for ref in character.references]
-                    shot_ref = self._shot_reference(scene, manifest, store)
-                    if shot_ref is not None:
-                        references = [shot_ref, *references]
+                    if spec.art_direction.mode == "directed":
+                        references = to_character_references(
+                            scene.reference_assets, registry, store.root
+                        )
+                    else:
+                        references = [ref for character in present for ref in character.references]
+                        shot_ref = self._shot_reference(scene, manifest, store)
+                        if shot_ref is not None:
+                            references = [shot_ref, *references]
                     try:
                         self._image_provider.generate(
                             ImageRequest(
@@ -538,6 +789,8 @@ class StoryPipeline:
         present: list[Character],
         *,
         provider: str | None = None,
+        registry: ReferenceRegistry | None = None,
+        store: ArtifactStore | None = None,
     ) -> str:
         """Fingerprint of everything that should invalidate a generated still.
 
@@ -564,6 +817,18 @@ class StoryPipeline:
                 references.append(entry)
         if scene.reference_shot_id:
             references.append({"shot_id": scene.reference_shot_id, "kind": "shot_continuity"})
+        if scene.reference_assets:
+            for asset_id in scene.reference_assets:
+                entry: dict[str, object] = {"asset_id": asset_id, "kind": "art_direction"}
+                if registry is not None and asset_id in registry.assets:
+                    asset = registry.assets[asset_id]
+                    entry["status"] = asset.status
+                    entry["content_hash"] = asset.content_hash
+                    if store is not None:
+                        path = asset.resolved_path(store.root)
+                        if path is not None and path.is_file():
+                            entry["sha256"] = sha256_file(path)
+                references.append(entry)
         payload: dict[str, object] = {
             "prompt": scene.image_prompt.strip(),
             "visual": scene.visual_description.strip(),
